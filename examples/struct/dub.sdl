@@ -1,0 +1,6 @@
+name "struct"
+description "An example showcasing parsing an array of structs."
+authors "michail"
+copyright "Copyright © 2017, michail"
+license "Boost"
+dependency "parsed" path="../../" version="*"
