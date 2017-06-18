@@ -1,0 +1,5 @@
+name "parsed"
+description "A library for text parsing."
+authors "Michail Pevnev"
+copyright "Copyright © 2017, michail"
+license "Boost"
