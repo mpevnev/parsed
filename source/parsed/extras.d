@@ -2,11 +2,8 @@
 
    Provides some nice-to-have, often useful things.
 
-   It publicly import core, so there's no need to import it if you use extras.
-
-   Note that most parsers that do not care about previous return value's type
-   default to using 'string' as the input type. This of course can be 
-   overridden if you need different input type.
+   It publicly imports 'core', so there's no need to import it if you use
+   extras.
 
    */
 
@@ -18,22 +15,23 @@ public import parsed.core;
 
 /* ---------- single-character parsers ---------- */
 
-/* Parses a single char of whitespace. Fails on non-whitespace input and on
-   empty strings. Returns parsed character as a string with unit length. */
+/* A char of whitespace. May optionally also match newlines.
+
+  Note: on Windows machines EOL is two chars, so there'll be leftover chars
+  after this parses away the first char in the pair. 
+ */
 auto
-whitespace(I = string, T = char)(bool acceptNewline = true)
-    if (isSomeChar!T)
+whitespace(B, C = char)(bool acceptNewline = false)
+    if (isSomeChar!C)
 {
-    alias S = immutable(T)[];
-    bool acceptable(T ch)
+    bool acceptable(C ch)
     {
         import std.uni;
-
         if (!ch.isWhite) return false;
         if (!acceptNewline && (ch == '\n' || ch == '\r')) return false;
         return true;
     }
-    return singleChar!(I, T)(&acceptable);
+    return singleChar!(B, C)(&acceptable);
 }
 unittest
 {
@@ -41,155 +39,144 @@ unittest
     string str2 = "foo\nbar";
     string str3 = "foobar";
 
-    auto p = literal("foo")
-        * whitespace;
-    assert(p.match(str1));
-    assert(p.match(str2));
-    assert(!p.match(str3));
+    auto p1 = literal!string("foo")
+        / whitespace!string;
+    assert(p1.match(str1));
+    assert(!p1.match(str2));
+    assert(!p1.match(str3));
+
+    auto p2 = literal!string("foo")
+        / whitespace!string(true);
+    assert(p2.match(str1));
+    assert(p2.match(str2));
+    assert(!p2.match(str3));
 }
 
-/* Parses a single non-whitespace character. Fails on whitespace and empty
-   strings. Returns parsed character as a string with unit lenght. 
-   */
+/* A char of anything but whitespace. */
 auto
-nonwhite(I = string, T = char)()
-    if (isSomeChar!T)
+nonwhite(B, C = char)()
+    if (isSomeChar!C)
 {
     import std.uni;
-
-    return singleChar!(I, T)(ch => !ch.isWhite);
+    return singleChar!(B, C)(c => !c.isWhite);
 }
 unittest
 {
     string str = "foo bar";
     auto state = ParserState!string(str);
+    auto word = many(1, -1, nonwhite!string);
 
-    auto p = many(nonwhite, -1, -1);
-    auto s2 = p.run(state);
-    assert(s2.returnValue == "foo");
+    auto res1 = word.run(state);
+    assert(res1.success);
+    assert(res1.parsed == "foo");
 
-    assert(p.match(" foo")); /* Note that as given 'many' will also match 0
-                                characters. */
-    auto p2 = many(nonwhite, 1, -1);
-    assert(!p2.match(" foo"));
+    auto res2 = word.run(res1);
+    assert(!res2.success);
 }
 
-/* Parses a single alphanumeric character. Returns parsed character as a 
-   string with unit length.
-   */
+/* An alphanumeric char. */
 auto
-alnum(I = string, T = char)()
-    if (isSomeChar!T)
+alnum(B, C = char)()
+    if (isSomeChar!C)
 {
     import std.uni;
-
-    return singleChar!(I, T)(ch => ch.isAlphaNum);
+    return singleChar!(B, C)(c => c.isAlphaNum);
 }
 unittest
 {
-    import std.stdio;
+    string str = "foo12";
+    auto state = ParserState!string(str);
 
-    string str = "foo12'";
-    auto initial = ParserState!string(str);
-
-    auto p1 = many(alnum, 1, -1);
-    auto s1 = p1.run(initial);
-    assert(s1.returnValue == "foo12");
-    assert(s1.left == "'");
-
-    auto s2 = p1.run(s1);
-    assert(!s2.success);
+    auto p = many(1, -1, alnum!string);
+    auto res = p.run(state);
+    assert(res.success);
+    assert(res.parsed == "foo12");
 }
 
-/* Parses a single alphabetic character. Returns parsed character as a string
-   with unit length.
-   */
+/* An alphabetic char. */
 auto
-alpha(I = string, T = char)()
-    if (isSomeChar!T)
+alpha(B, C = char)()
+    if (isSomeChar!C)
 {
     import std.uni;
-
-    return singleChar!(I, T)(ch => ch.isAlpha);
+    return singleChar!(B, C)(c => c.isAlpha);
 }
 unittest
 {
-    string str = "ab12";
-    auto initial = ParserState!string(str);
+    string str = "foo12";
+    auto state = ParserState!string(str);
 
-    auto p1 = many(alpha, 1, -1);
-    auto s1 = p1.run(initial);
-    assert(s1.returnValue == "ab");
-    assert(s1.left == "12");
+    auto p = many(1, -1, alpha!string);
+    auto res = p.run(state);
+    assert(res.success);
+    assert(res.parsed == "foo");
 }
 
-/* Parses a single deciman digit. Returns parsed character as a string with
-   unit length.
-   */
+/* A decimal digit. */
 auto
-digit(I = string, T = char)()
-    if (isSomeChar!T)
+digit(B, C = char)()
+    if (isSomeChar!C)
 {
     import std.uni;
-
-    return singleChar!(I, T)(ch => ch.isNumber);
+    return singleChar!(B, C)(c => c.isNumber);
 }
 unittest
 {
-    string str = "12a";
-    auto initial = ParserState!string(str);
+    string str = "123f";
+    auto state = ParserState!string(str);
 
-    auto p1 = many(digit, 1, -1);
-    auto s1 = p1.run(initial);
-    assert(s1.returnValue == "12");
-    assert(s1.left == "a");
+    auto p = many(1, -1, digit!string);
+    auto res = p.run(state);
+    assert(res.success);
+    assert(res.parsed == "123");
 }
 
-/* ---------- misc ---------- */
-
-/* Parses a whole line and returns it. Always succeeds. */
+/* A newline. */
 auto
-line(I = string, T = char)(bool keepNewline = true)
+newline(B, C = char)()
+    if (isSomeChar!C)
 {
-    import std.string;
-
-    auto res = collectUntil!(I, T)(ch => ch == '\n' || ch == '\r', true);
-    if (keepNewline)
-        return res;
-    else
-        return res.morph(s => s.chomp);
+    return singleChar!(B, C)(ch => ch == '\n' || ch == '\r');
 }
 unittest
 {
     string str = "foo\nbar";
-    auto initial = ParserState!string(str);
 
-    auto p = line(false);
-    auto s1 = p.run(initial);
-    assert(s1.returnValue == "foo");
-
-    auto s2 = p.run(s1);
-    assert(s2.returnValue == "bar");
+    auto p = literal!string("foo") 
+        * newline!string 
+        * literal!string("bar");
+    assert(p.match(str));
 }
 
-/* Strips away leading and trailing whitespace from previous parser's return
-   value and returns resulting string. */
+/* ---------- misc ---------- */
+
+/* Parses a whole line (with or without terminating newline). Always succeeds. */
 auto
-strip(I, S = string)()
-    if (isSomeString!I)
+line(B, C = char)(bool keepTerminator)
+    if (isSomeChar!C)
 {
     import std.string;
+    alias S = immutable(C)[];
 
-    return morph!(I, I, S)(delegate (I s) { return std.string.strip(s); });
+    auto res = parseUntil!(B, C)(ch => ch == '\n' || ch == '\r', true);
+    if (keepTerminator)
+        return res;
+    else
+        return res / morph!(B, S)(s => s.chomp);
 }
 unittest
 {
-    string str = "   foo  \n";
-    auto initial = ParserState!string(str);
+    string str = "foo\nbar";
+    auto state = ParserState!string(str);
+    auto p = line!string(false);
 
-    auto p = line!string(true) / strip!string;
-    auto s1 = p.run(initial);
-    assert(s1.returnValue == "foo");
+    auto res1 = p.run(state);
+    assert(res1.success);
+    assert(res1.parsed == "foo");
+
+    auto res2 = p.run(res1);
+    assert(res2.success);
+    assert(res2.parsed == "bar");
 }
 
 enum Word
@@ -205,32 +192,35 @@ enum Word
    end.
    */
 auto
-word(I = string, T = char)(Word type, int minLength = 1, int maxLength = -1)
+word(B, C = char)(Word type, int minLength = 1, int maxLength = -1)
+    if (isSomeChar!C)
 {
     final switch (type) {
         case Word.any: 
-            return many(nonwhite!(I, T), minLength, maxLength);
+            return many(minLength, maxLength, nonwhite!(B, C));
         case Word.alnum:
-            return many(alnum!(I, T), minLength, maxLength);
+            return many(minLength, maxLength, alnum!(B, C));
         case Word.alpha:
-            return many(alpha!(I, T), minLength, maxLength);
+            return many(minLength, maxLength, alpha!(B, C));
     }
 }
 unittest
 {
     string str = "foo12( bar1 ";
-    auto initial = ParserState!string(str);
+    auto state = ParserState!string(str);
 
-    auto p1 = word(Word.any);
-    auto s1 = p1.run(initial);
-    assert(s1.success);
-    assert(s1.returnValue == "foo12(");
+    auto p1 = word!string(Word.any);
+    auto res1 = p1.run(state);
+    assert(res1.success);
+    assert(res1.parsed == "foo12(");
 
-    auto p2 = word(Word.alnum);
-    auto s2 = (whitespace / p2).run(s1); /* Note the 'whitespace'. */
-    assert(s2.success);
-    assert(s2.returnValue == "bar1");
-    auto s3 = p2.run(initial);
-    assert(s3.success);
-    assert(s3.returnValue == "foo12");
+    auto p2 = word!string(Word.alnum);
+    auto res2 = p2.run(state);
+    assert(res2.success);
+    assert(res2.parsed == "foo12");
+
+    auto p3 = word!string(Word.alpha);
+    auto res3 = p3.run(state);
+    assert(res3.success);
+    assert(res3.parsed == "foo");
 }
