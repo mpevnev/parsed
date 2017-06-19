@@ -70,9 +70,12 @@ struct ParserState(B, S = string) /* B(uild) and S(tring). */
     ThisState build(B delegate (B, S) dg)
     {
         auto res = this;
-        if (success)
+        if (success) {
             res.value = dg(value, parsed);
-        return res;
+            return res.succeed;
+        } else {
+            return res.fail;
+        }
     }
 
     ThisState absorb(B2)(
@@ -161,9 +164,10 @@ interface Parser(B, S = string)
                 auto res1 = this.outer.run(toParse);
                 if (res1.success) {
                     auto res2 = other.run(res1);
-                    if (res2.success)
+                    if (res2.success) {
                         if (concat) res2.parsed = res1.parsed ~ res2.parsed;
-                        return res2;
+                        return res2.succeed;
+                    }
                 }
                 return toParse.fail;
             }
@@ -345,6 +349,8 @@ many(B, S = string)(int min, int max, Parser!(B, S) p)
     {
         ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
+            import std.stdio;
+
             if (!toParse.success) return toParse.fail;
             S parsed;
             ParserState!(B, S) cur = toParse.succeed;
@@ -361,12 +367,17 @@ many(B, S = string)(int min, int max, Parser!(B, S) p)
             }
 
             /* Parse the rest. */
-            while ((max < 0 || (max > 0 && n < max)) && cur.success) {
+            B value = cur.value;
+            while ((max < 0 || n < max) && cur.success) {
                 cur = p.run(cur);
-                if (!cur.success) break;
+                if (!cur.success) 
+                    break;
+                else
+                    value = cur.value;
                 n++;
                 parsed ~= cur.parsed;
             }
+            cur.value = value;
             return cur.succeed(parsed);
         }
     }

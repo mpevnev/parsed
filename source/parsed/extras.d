@@ -224,3 +224,51 @@ unittest
     assert(res3.success);
     assert(res3.parsed == "foo");
 }
+
+/* Parses a number. */
+auto
+number(B, C = char)()
+    if (isSomeChar!C)
+{
+    return many(1, -1, digit!(B, C));
+}
+unittest
+{
+    string str1 = "12 12";
+    string str2 = "12f";
+    string str3 = "foo";
+    auto state1 = ParserState!string(str1);
+    auto state2 = ParserState!string(str2);
+
+    auto p = number!string;
+    auto res1 = p.run(state1);
+    assert(res1.success);
+    assert(res1.parsed == "12");
+
+    auto res2 = p.run(state2);
+    assert(res2.success);
+    assert(res2.parsed == "12");
+
+    assert(!p.match(str3));
+}
+
+/* Parses something one or zero times. */
+auto
+maybe(B, S = string)(Parser!(B, S) p)
+{
+    return many(0, 1, p);
+}
+unittest
+{
+    string str1 = "foo bar";
+    string str2 = "foobar";
+    string str3 = "foo!bar";
+
+    auto p = literal!string("foo")
+        / maybe(whitespace!string)
+        / literal!string("bar");
+
+    assert(p.match(str1));
+    assert(p.match(str2));
+    assert(!p.match(str3));
+}
