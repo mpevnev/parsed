@@ -148,7 +148,7 @@ unittest
     assert(p.match(str));
 }
 
-/* ---------- misc ---------- */
+/* ---------- multi-character combinations of the above ---------- */
 
 /* Parses a whole line (with or without terminating newline). Always succeeds. */
 auto
@@ -252,9 +252,12 @@ unittest
     assert(!p.match(str3));
 }
 
+/* ---------- misc ---------- */
+
 /* Parses something one or zero times. */
 auto
 maybe(B, S = string)(Parser!(B, S) p)
+    if (isSomeString!S)
 {
     return many(0, 1, p);
 }
@@ -271,4 +274,83 @@ unittest
     assert(p.match(str1));
     assert(p.match(str2));
     assert(!p.match(str3));
+}
+
+/* Parses text between balanced pair of given symbols. */
+auto
+balanced(B, C = char)(C left, C right, bool keepPair = false)
+    if (isSomeChar!C)
+{
+    alias S = immutable(C)[];
+    class Res: Parser!(B, S)
+    {
+        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        {
+            if (!toParse.success) return toParse.fail;
+            /* There must be space for a pair. */
+            if (toParse.left.length < 2) return toParse.fail;
+            if (toParse.left[0] != left) return toParse.fail;
+
+            int level = 1;
+            size_t parsed = 1;
+            size_t len = toParse.left.length;
+            while (level != 0 && parsed < len) {
+                C ch = toParse.left[parsed];
+                if (ch == left) 
+                    level++;
+                else if (ch == right)
+                    level--;
+                parsed++;
+            }
+
+            if (level == 0) {
+                auto res = toParse;
+                if (keepPair)
+                    res.parsed = toParse.left[0 .. parsed];
+                else
+                    res.parsed = toParse.left[1 .. parsed - 1]; 
+                if (parsed < len)
+                    res.left = res.left[parsed .. $];
+                else
+                    res.left = [];
+                return res.succeed;
+            } else {
+                return toParse.fail;
+            }
+        } /* run */
+    } /* Res */
+    return new Res();
+}
+unittest
+{
+    string str1 = "(abcdef)";
+    string str2 = "(ab(df))";
+    string str3 = "((asdf)d)";
+    string str4 = "(asdf)f";
+    string str5 = "(asdff";
+    auto state1 = ParserState!int(str1);
+    auto state2 = ParserState!int(str2);
+    auto state3 = ParserState!int(str3);
+    auto state4 = ParserState!int(str4);
+    auto state5 = ParserState!int(str5);
+    auto p = balanced!int('(', ')');
+
+    auto res1 = p.run(state1);
+    assert(res1.success);
+    assert(res1.parsed == "abcdef");
+
+    auto res2 = p.run(state2);
+    assert(res2.success);
+    assert(res2.parsed == "ab(df)");
+
+    auto res3 = p.run(state3);
+    assert(res3.success);
+    assert(res3.parsed == "(asdf)d");
+
+    auto res4 = p.run(state4);
+    assert(res4.success);
+    assert(res4.parsed == "asdf");
+
+    auto res5 = p.run(state5);
+    assert(!res5.success);
 }

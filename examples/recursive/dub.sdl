@@ -1,0 +1,6 @@
+name "recursive"
+description "An example showcasing parsing recursive structures."
+authors "michail"
+copyright "Copyright © 2017, michail"
+license "Boost"
+dependency "parsed" path="../../" version="*"
