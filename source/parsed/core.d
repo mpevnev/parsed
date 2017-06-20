@@ -316,18 +316,24 @@ unittest
     assert(p3.match(str));
 }
 
-/* Always fails consuming to input. */
+/* Fails if given condition returns false, succeeds consuming no input otherwise. */
 auto
-fail(B, S = string)()
+test(B, S = string)(bool delegate (B, S) tst)
 {
     class Res: Parser!(B, S)
     {
         ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
-            return toParse.fail;
+            if (!toParse.success) return toParse.fail;
+            if (tst(toParse.value, toParse.parsed))
+                return toParse.succeeed;
+            else
+                return toParse.fail;
         }
     }
     return new Res();
+}
+
 }
 unittest
 {
