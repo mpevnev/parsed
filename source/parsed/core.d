@@ -326,21 +326,25 @@ test(B, S = string)(bool delegate (B, S) tst)
         {
             if (!toParse.success) return toParse.fail;
             if (tst(toParse.value, toParse.parsed))
-                return toParse.succeeed;
+                return toParse.succeed;
             else
                 return toParse.fail;
         }
     }
     return new Res();
 }
-
-}
 unittest
 {
-    string str = "foo";
+    import std.conv;
 
-    auto p = fail!int;
-    assert(!p.match(str));
+    string str = "12";
+    auto state = ParserState!int(str);
+
+    auto p = literal!int("12")
+        % ((res, i) => to!int(i))
+        / test!int((res, s) => res > 5);
+    auto res = p.run(state);
+    assert(res.success);
 }
 
 /* Uses the same parser between 'min' and 'max' times. If either of 'min' and
