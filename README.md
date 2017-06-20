@@ -14,9 +14,9 @@ together the strings they parsed (if they've succeeded, of course).
 2. `/` is also applied to two parsers. It runs both of them and discards first
 one's parsed string, resulting in only second parser's parsed string being
 passed down the parser chain.
-3. `%` is the most importnant one. It applied to a parser on the left side and 
-a function that takes chain's built-up value and this parser's parsed string.
-The function should return new build-up value, which will replace that of the
-whole parser chain.
+3. `%` is the most importnant one. It is applied to a parser on the left side
+and a function that takes chain's built-up value and this parser's parsed
+string.  The function should return new build-up value, which will replace that
+of the whole parser chain.
 
 For examples, see 'examples' folder and unittests in the source files.
