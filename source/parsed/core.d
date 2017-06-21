@@ -337,6 +337,27 @@ unittest
     assert(!p.match(str));
 }
 
+/* Always succeeds. Useful if the first thing in the chain you want to do is to
+   build value.
+   */
+auto
+succeed(B, S = string)()
+{
+    class Res: Parser!(B, S)
+    {
+        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        {
+            return toParse.succeed;
+        }
+    }
+    return new Res();
+}
+unittest
+{
+    string str = "foo";
+    assert(succeed!string.match(str));
+}
+
 /* Fails if given condition returns false, succeeds consuming no input otherwise. */
 auto
 test(B, S = string)(bool delegate (B, S) tst)
