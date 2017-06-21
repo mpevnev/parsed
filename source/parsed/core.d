@@ -316,6 +316,27 @@ unittest
     assert(p3.match(str));
 }
 
+/* Always fails. Useful to terminate 'many'. */
+auto
+fail(B, S = string)()
+{
+    class Res: Parser!(B, S)
+    {
+        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        {
+            return toParse.fail;
+        }
+    }
+    return new Res();
+}
+unittest
+{
+    string str = "foo";
+    auto p = fail!string;
+
+    assert(!p.match(str));
+}
+
 /* Fails if given condition returns false, succeeds consuming no input otherwise. */
 auto
 test(B, S = string)(bool delegate (B, S) tst)
