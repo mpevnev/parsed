@@ -158,7 +158,7 @@ line(B, C = char)(bool keepTerminator)
     import std.string;
     alias S = immutable(C)[];
 
-    auto res = parseUntil!(B, C)(ch => ch == '\n' || ch == '\r', true);
+    auto res = charUntil!(B, C)(ch => ch == '\n' || ch == '\r', true);
     if (keepTerminator)
         return res;
     else

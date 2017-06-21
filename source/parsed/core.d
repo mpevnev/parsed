@@ -276,6 +276,7 @@ unittest
 /* Parses a literal string (case-sensitive by default). */
 auto
 literal(B, S = string)(S str, bool consumeInput = true, bool caseSensitive = true) 
+    if (isSomeString!S)
 {
     import std.string;
 
@@ -319,6 +320,7 @@ unittest
 /* Always fails. Useful to terminate 'many'. */
 auto
 fail(B, S = string)()
+    if (isSomeString!S)
 {
     class Res: Parser!(B, S)
     {
@@ -342,6 +344,7 @@ unittest
    */
 auto
 succeed(B, S = string)()
+    if (isSomeString!S)
 {
     class Res: Parser!(B, S)
     {
@@ -361,6 +364,7 @@ unittest
 /* Fails if given condition returns false, succeeds consuming no input otherwise. */
 auto
 test(B, S = string)(bool delegate (B, S) tst)
+    if (isSomeString!S)
 {
     class Res: Parser!(B, S)
     {
@@ -396,6 +400,7 @@ unittest
    */
 auto 
 many(B, S = string)(int min, int max, Parser!(B, S) p)
+    if (isSomeString!S)
 {
     class Res: Parser!(B, S)
     {
@@ -463,6 +468,7 @@ unittest
    */
 auto
 absorb(B, B2, S = string)(B delegate (B, B2, S) dg, Parser!(B2, S) subparser)
+    if (isSomeString!S)
 {
     class Res: Parser!(B, S)
     {
@@ -503,6 +509,7 @@ unittest
    */
 auto
 morph(B, S = string)(S delegate (S) dg)
+    if (isSomeString!S)
 {
     class Res: Parser!(B, S)
     {
@@ -574,7 +581,7 @@ unittest
 
 /* Parses characters while a condition is met. */
 auto
-parseWhile(B, C = char)(bool delegate (C) test, bool keepTerminator = true)
+charWhile(B, C = char)(bool delegate (C) test, bool keepTerminator = true)
     if (isSomeChar!C)
 {
     alias S = immutable(C)[];
@@ -600,7 +607,7 @@ unittest
     string str1 = "foo bar";
     auto state1 = ParserState!string(str1);
 
-    auto word = parseWhile!string(c => c != ' ', false);
+    auto word = charWhile!string(c => c != ' ', false);
     auto res1 = word.run(state1);
     assert(res1.parsed == "foo");
     assert(res1.left == " bar");
@@ -611,8 +618,68 @@ unittest
 
 /* Parses characters until a condition is met. */
 auto
-parseUntil(B, C = char)(bool delegate (C) test, bool keepTerminator = true)
+charUntil(B, C = char)(bool delegate (C) test, bool keepTerminator = true)
     if (isSomeChar!C)
 {
-    return parseWhile!(B, C)(c => !test(c), keepTerminator);
+    return charWhile!(B, C)(c => !test(c), keepTerminator);
+}
+
+/* Uses the same parser while a condition is met. The condition function takes
+   (in order) currently built value, parsed string and iteration (0-based).
+   Always succeeds.
+   */
+auto
+repeatWhile(B, S = string)(bool delegate (B, S, int) test, Parser!(B, S) p)
+    if (isSomeString!S)
+{
+    class Res: Parser!(B, S)
+    {
+        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        {
+            if (!toParse.success) return toParse.fail;
+
+            auto old = toParse;
+            auto cur = toParse;
+            int n = 0;
+            while (true) {
+                old = cur;
+                cur = p.run(cur);
+                if (!cur.success) break;
+                if (!test(cur.value, cur.parsed, n)) break;
+                n++;
+            }
+
+            return old.succeed;
+        }
+    }
+    return new Res();
+}
+unittest
+{
+    import std.conv;
+
+    auto str = "12345";
+    auto state = ParserState!int(str);
+    auto digit = singleChar!int(c => '0' <= c && c <= '9')
+        % (res, s) => res * 10 + to!int(s);
+
+    auto p1 = repeatWhile!int((res, s, i) => i < 3, digit);
+    auto res1 = p1.run(state);
+    assert(res1.success);
+    assert(res1.value == 123);
+
+    auto p2 = repeatWhile!int((res, s, i) => res < 100, digit);
+    auto res2 = p2.run(state);
+    assert(res2.success);
+    assert(res2.value == 12);
+}
+
+/* Uses the same parser until a condition is met. The condition function is the
+   same as for 'repeatWhile'.
+   */
+auto
+repeatUntil(B, S = string)(bool delegate (B, S, int) test, Parser!(B, S) p)
+    if (isSomeString!S)
+{
+    return repeatWhile((b, s, i) => !test(b, s, i), p);
 }
