@@ -347,10 +347,19 @@ balanced(B, C = char)(C left, C right, bool keepPair = false)
             size_t len = toParse.left.length;
             while (level != 0 && parsed < len) {
                 C ch = toParse.left[parsed];
-                if (ch == left) 
-                    level++;
-                else if (ch == right)
+                /* Note that the order here is very important. It allows to
+                   use the same character for left and right.
+                   */
+                if (ch == right) {
                     level--;
+                    parsed++;
+                    continue;
+                }
+                if (ch == left) {
+                    level++;
+                    parsed++;
+                    continue;
+                }
                 parsed++;
             }
 
@@ -379,12 +388,15 @@ unittest
     string str3 = "((asdf)d)";
     string str4 = "(asdf)f";
     string str5 = "(asdff";
+    string str6 = "/asdf/";
     auto state1 = ParserState!int(str1);
     auto state2 = ParserState!int(str2);
     auto state3 = ParserState!int(str3);
     auto state4 = ParserState!int(str4);
     auto state5 = ParserState!int(str5);
+    auto state6 = ParserState!int(str6);
     auto p = balanced!int('(', ')');
+    auto p2 = balanced!int('/', '/');
 
     auto res1 = p.run(state1);
     assert(res1.success);
@@ -404,6 +416,10 @@ unittest
 
     auto res5 = p.run(state5);
     assert(!res5.success);
+
+    auto res6 = p2.run(state6);
+    assert(res6.success);
+    assert(res6.parsed == "asdf");
 }
 
 /* Parses text between balanced pair of bits that match given parsers. 'left'
@@ -431,13 +447,9 @@ balanced(B, S = string)(Parser!(B, S) left, Parser!(B, S) right, bool keepPair =
             size_t lastRightLen;
             size_t len = toParse.left.length;
             while (level != 0 && parsed < len) {
-                auto maybeLeft = left.run(cur);
-                if (maybeLeft.success) {
-                    level++;
-                    parsed += maybeLeft.parsed.length;
-                    cur = maybeLeft;
-                    continue;
-                }
+                /* Note the order. It allows using same parsers for left and
+                   right.
+                   */
                 auto maybeRight = right.run(cur);
                 if (maybeRight.success) {
                     level--;
@@ -445,6 +457,13 @@ balanced(B, S = string)(Parser!(B, S) left, Parser!(B, S) right, bool keepPair =
                     parsed += rightLen;
                     lastRightLen = rightLen;
                     cur = maybeRight;
+                    continue;
+                }
+                auto maybeLeft = left.run(cur);
+                if (maybeLeft.success) {
+                    level++;
+                    parsed += maybeLeft.parsed.length;
+                    cur = maybeLeft;
                     continue;
                 }
                 parsed++;
@@ -466,12 +485,19 @@ unittest
 {
     string str1 = "foo 1 2 3 bar";
     string str2 = "foo 1 2 3";
+    string str3 = "foo 1 2 3 foo";
     auto s1 = ParserState!int(str1);
+    auto s3 = ParserState!int(str3);
     auto p = balanced!int(literal!int("foo"), literal!int("bar"), false);
+    auto p2 = balanced!int(literal!int("foo"), literal!int("foo"), false);
 
     auto res1 = p.run(s1);
     assert(res1.success);
     assert(res1.parsed == " 1 2 3 ");
 
     assert(!p.match(str2));
+
+    auto res3 = p2.run(s3);
+    assert(res3.success);
+    assert(res3.parsed == " 1 2 3 ");
 }
