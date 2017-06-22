@@ -131,6 +131,18 @@ unittest
     assert(res.parsed == "123");
 }
 
+/* A hexadecimal digit. */
+auto
+hexdigit(B, C = char)()
+    if (isSomeChar!C)
+{
+    import std.uni;
+    return singleChar!(B, C)(c => c.isNumber 
+            || ('a' <= c && c <= 'f')
+            || ('A' <= c && c <= 'F'));
+
+}
+
 /* A newline. */
 auto
 newline(B, C = char)()
@@ -177,6 +189,34 @@ unittest
     auto res2 = p.run(res1);
     assert(res2.success);
     assert(res2.parsed == "bar");
+}
+
+/* Parses several whitespace characters, but no less than one. */
+auto
+someWhite(B, C = char)(bool acceptNewlines = false)
+    if (isSomeChar!C)
+{
+    return many(1, -1, whitespace!(B, C)(acceptNewlines));
+}
+unittest
+{
+    string str1 = "foo   bar";
+    string str2 = "foo\tbar";
+    string str3 = "foobar";
+    string str4 = "foo \n\nbar";
+
+    auto p1 = literal!int("foo") / someWhite!int(false) / literal!int("bar");
+    auto p2 = literal!int("foo") / someWhite!int(true) / literal!int("bar");
+
+    assert(p1.match(str1));
+    assert(p1.match(str2));
+    assert(!p1.match(str3));
+    assert(!p1.match(str4));
+
+    assert(p2.match(str1));
+    assert(p2.match(str2));
+    assert(!p2.match(str3));
+    assert(p2.match(str4));
 }
 
 enum Word
@@ -250,6 +290,17 @@ unittest
     assert(res2.parsed == "12");
 
     assert(!p.match(str3));
+}
+
+/* Parses a hexadecimal number. The number may or may not be prefixed by '0x'.
+   The prefix will *not* appear in '.parsed'. 
+ */
+auto
+hexnum(B, C = char)()
+    if (isSomeChar!C)
+{
+    alias S = immutable(C)[];
+    return maybe(literal!S("0x")) / many(1, -1, hexdigit!C);
 }
 
 /* ---------- misc ---------- */
@@ -353,4 +404,74 @@ unittest
 
     auto res5 = p.run(state5);
     assert(!res5.success);
+}
+
+/* Parses text between balanced pair of bits that match given parsers. 'left'
+   and 'right' parsers are going to be run many times, so be careful with
+   building inside them. */
+auto
+balanced(B, S = string)(Parser!(B, S) left, Parser!(B, S) right, bool keepPair = false)
+    if (isSomeString!S)
+{
+    class Res: Parser!(B, S)
+    {
+        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        {
+            if (!toParse.success) return toParse.fail;
+
+            auto cur = toParse;
+            cur = left.run(cur);
+            if (!cur.success) return toParse.fail;
+
+            import std.stdio;
+
+            int level = 1;
+            size_t start = cur.parsed.length;
+            size_t parsed = start;
+            size_t lastRightLen;
+            size_t len = toParse.left.length;
+            while (level != 0 && parsed < len) {
+                auto maybeLeft = left.run(cur);
+                if (maybeLeft.success) {
+                    level++;
+                    parsed += maybeLeft.parsed.length;
+                    cur = maybeLeft;
+                    continue;
+                }
+                auto maybeRight = right.run(cur);
+                if (maybeRight.success) {
+                    level--;
+                    size_t rightLen = maybeRight.parsed.length;
+                    parsed += rightLen;
+                    lastRightLen = rightLen;
+                    cur = maybeRight;
+                    continue;
+                }
+                parsed++;
+                cur.left = cur.left[1 .. $];
+            } /* while level != 0 */
+            if (level != 0) return toParse.fail;
+            auto res = toParse;
+            res.left = cur.left;
+            if (keepPair)
+                res.parsed = toParse.left[0 .. parsed];
+            else
+                res.parsed = toParse.left[start .. parsed - lastRightLen];
+            return res.succeed;
+        } /* run */
+    } /* Res */
+    return new Res();
+}
+unittest
+{
+    string str1 = "foo 1 2 3 bar";
+    string str2 = "foo 1 2 3";
+    auto s1 = ParserState!int(str1);
+    auto p = balanced!int(literal!int("foo"), literal!int("bar"), false);
+
+    auto res1 = p.run(s1);
+    assert(res1.success);
+    assert(res1.parsed == " 1 2 3 ");
+
+    assert(!p.match(str2));
 }

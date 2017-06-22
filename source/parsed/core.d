@@ -393,6 +393,33 @@ unittest
     assert(res.success);
 }
 
+/* Builds a value from previous parser's output. Always succeeds. */
+auto
+build(B, S = string)(B delegate (B, S) dg)
+{
+    class Res: Parser!(B, S)
+    {
+        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        {
+            if (!toParse.success) return toParse.fail;
+            auto res = toParse;
+            res.value = dg(toParse.value, toParse.parsed);
+            return res;
+        }
+    }
+    return new Res();
+}
+unittest
+{
+    string str = "foo";
+    auto state = ParserState!int(str);
+
+    auto p = build!int((res, s) => 10);
+    auto res = p.run(state);
+    assert(res.success);
+    assert(res.value == 10);
+}
+
 /* Uses the same parser between 'min' and 'max' times. If either of 'min' and
    'max' is negative, there's no limit on corresponding allowed amount of
    times. Value is passed from each run to the next one, with resulting 

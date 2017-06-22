@@ -87,6 +87,14 @@ Runs built-up value and previous parser's `.parsed` through the given
 function. Succeeds with `.parsed` inherited from the previous parsed if the
 function returns `true`, fails otherwise.
 
+## build
+
+`auto build(B, S = string)(B delegate (B, S) dg)`.
+
+Builds a value just like `%` operator does. However, `build` can be the first
+element in a parser chain, unlike `%`, which requires a parser to be in the
+chain before it.
+
 ## many
 
 `auto many(B, S = string)(int min, int max, Parser!(B, S) p)`.
@@ -153,6 +161,8 @@ Same as `repeatWhile`, but parses until a condition is met. Always succeeds.
 
 # Extra parsers
 
+These parsers are defined in `parsed.extras`.
+
 ## whitespace
 
 `auto whitespace(B, C = char)(bool acceptNewline = false)`.
@@ -184,6 +194,12 @@ Parses a single alphabetic character (as defined by `uni.isAlpha`).
 
 Parses a single decimal digit.
 
+## hexdigit
+
+`auto hexdigit(B, C = char)()`.
+
+Parses a single hexadecimal digit (both lower- and upper-case).
+
 ## newline
 
 `auto newline(B, C = char)()`.
@@ -195,6 +211,13 @@ Parses a single '\n' or '\r'.
 `auto line(B, C = char)(bool keepTerminator)`.
 
 Parses a whole line (with or without terminating newline). Always succeeds.
+
+## someWhite
+
+`auto someWhite(B, C = char)(bool acceptNewline)`.
+
+Parses as many whitespace characters as it can, but no less than one.
+Optionally parses newlines as well.
 
 ## word
 
@@ -214,6 +237,13 @@ first bit as `.parsed`.
 
 Parses a decimal integral number (no floats).
 
+## hexnum
+
+`auto hexnum(B, C = char)()`.
+
+Parser a hexadecimal number (both upper- and lower-case). A number may begin
+with "0x", but it's not included in the `.parsed`.
+
 ## maybe
 
 `auto maybe(B, S = string)(Parser!(B, S) p)`.
@@ -221,7 +251,7 @@ Parses a decimal integral number (no floats).
 Uses the given parser zero or one time. This is convenience wrapper over
 `many(0, 1, parser)`.
 
-## balanced
+## balanced (1st overload)
 
 `auto balanced(B, C = char)(C left, C right, bool keepPair = false)`.
 
@@ -229,3 +259,12 @@ Parses text between a balanced pair of symbols. May either include or not the
 starting and terminating `left` and `right` respectively. Note that `keepPair`
 has effect only on `.parsed`, not on the state of the input, the pair is 
 always removed from it.
+
+## balanced (2nd overload)
+
+`auto balanced(B, S = string)(Parser!(B, S) left, Parser!(B, S) right, bool keepPair = false)`.
+
+Acts just like the first overload, except it uses parsers to determine which
+bits of text will serve as left and right components of a pair. Note that it
+will call both parsers on _every_ character in between left and right, so it's
+going to be extremely slow for longer strings.
