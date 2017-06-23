@@ -219,6 +219,22 @@ unittest
     assert(p2.match(str4));
 }
 
+/* Parses several newline characters, but no less than one. */
+auto 
+someNewlines(B, С = char)()
+    if (isSomeChar!C)
+{
+    return many(1, -1, newline!(B, C));
+}
+unittest
+{
+    string str1 = "foo\n\rbar";
+    auto p1 = literal!int("foo")
+        / someNewlines!int
+        / literal!int("bar");
+    assert (p1.match(str1));
+}
+
 enum Word
 {
     any,

@@ -219,6 +219,12 @@ Parses a whole line (with or without terminating newline). Always succeeds.
 Parses as many whitespace characters as it can, but no less than one.
 Optionally parses newlines as well.
 
+## someNewlines
+
+`auto someNewlines(B, C = char)()`.
+
+Parses as many newline characters as it can, but not less than one.
+
 ## word
 
 `auto word(B, C = char)(Word type, int minLength = 1, int maxLength = -1)`.
