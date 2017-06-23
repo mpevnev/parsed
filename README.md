@@ -26,7 +26,7 @@ looks like this: `auto state = ParserState!SomeType(someString)`. To perform a
 parse now, you need to `auto res = someParser.run(state)`. Then you'll want to
 test if the parser succeeded (which is done via `.success` property of
 ParserState) and to get the value (of type `SomeType`) built by the parser,
-, which is done via `.value` property of ParserState. To build a value, you'll
+which is done via `.value` property of ParserState. To build a value, you'll
 have to use `%` operator described below. Parsed string can be accesses via
 `.parsed` property of ParserState.
 
