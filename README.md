@@ -223,13 +223,13 @@ Optionally parses newlines as well.
 
 `auto someNewlines(B, C = char)()`.
 
-Parses as many newline characters as it can, but not less than one.
+Parses as many newline characters as it can, but no less than one.
 
 ## word
 
 `auto word(B, C = char)(Word type, int minLength = 1, int maxLength = -1)`.
 
-Parses a word. The definition of a word is defined by the `type` parameter.
+Parses a word. The definition of a word is determined by the `type` parameter.
 If `type` is `Word.any` then a word is a sequence of non-whitespace characters.
 If `type` is `Word.alnum` then a word is a sequence of alphanumeric characters.
 If `type` is `Word.alpha` then a word is a sequence of alphabetic characters.
