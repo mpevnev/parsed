@@ -165,7 +165,10 @@ interface Parser(B, S = string)
                 if (res1.success) {
                     auto res2 = other.run(res1);
                     if (res2.success) {
-                        if (concat) res2.parsed = res1.parsed ~ res2.parsed;
+                        if (res2.empty)
+                            res2.parsed = res1.parsed;
+                        else if (concat)
+                            res2.parsed = res1.parsed ~ res2.parsed;
                         return res2.succeed;
                     }
                 }
@@ -269,6 +272,19 @@ unittest
     auto res = sum.run(state);
     assert(res.success);
     assert(res.value == 6);
+}
+unittest
+{
+    string str1 = "foo bar";
+    auto s1 = ParserState!int(str1);
+
+    auto p1 = literal!int("foo")
+        / literal!int(" ").discard
+        * literal!int("bar");
+
+    auto res1 = p1.run(str1);
+    assert(res1.success);
+    assert(res1.parsed == "foobar");
 }
 
 /* ---------- fundamental parsers ---------- */
