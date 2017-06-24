@@ -219,9 +219,37 @@ unittest
     assert(p2.match(str4));
 }
 
+/* Parses zero or more whitespace characters. */
+auto
+maybeWhite(B, C = char)(bool acceptNewlines = false)
+    if (isSomeChar!C)
+{
+    return many(0, -1, whitespace!(B, C)(acceptNewlines));
+}
+unittest
+{
+    string str1 = "foo   bar";
+    string str2 = "foo\tbar";
+    string str3 = "foobar";
+    string str4 = "foo \n\nbar";
+
+    auto p1 = literal!int("foo") / maybeWhite!int(false) / literal!int("bar");
+    auto p2 = literal!int("foo") / maybeWhite!int(true) / literal!int("bar");
+
+    assert(p1.match(str1));
+    assert(p1.match(str2));
+    assert(p1.match(str3));
+    assert(!p1.match(str4));
+
+    assert(p2.match(str1));
+    assert(p2.match(str2));
+    assert(p2.match(str3));
+    assert(p2.match(str4));
+}
+
 /* Parses several newline characters, but no less than one. */
 auto 
-someNewlines(B, С = char)()
+someNewlines(B, C = char)()
     if (isSomeChar!C)
 {
     return many(1, -1, newline!(B, C));

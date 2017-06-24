@@ -214,10 +214,17 @@ Parses a whole line (with or without terminating newline). Always succeeds.
 
 ## someWhite
 
-`auto someWhite(B, C = char)(bool acceptNewline)`.
+`auto someWhite(B, C = char)(bool acceptNewlines)`.
 
 Parses as many whitespace characters as it can, but no less than one.
 Optionally parses newlines as well.
+
+## maybeWhite
+
+`auto maybeWhite(B, C = char)(bool acceptNewlines)`.
+
+Parses as many whitespace characters as it can, maybe even 0. Optionally parses
+newlines as well.
 
 ## someNewlines
 
