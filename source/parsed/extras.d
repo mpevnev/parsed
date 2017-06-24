@@ -265,6 +265,22 @@ unittest
     assert (p1.match(str1));
 }
 
+/* Parses zero or more newline characters. */
+auto 
+maybeNewlines(B, C = char)()
+    if (isSomeChar!C)
+{
+    return many(0, -1, newline!(B, C));
+}
+unittest
+{
+    string str1 = "foo\n\rbar";
+    auto p1 = literal!int("foo")
+        / someNewlines!int
+        / literal!int("bar");
+    assert (p1.match(str1));
+}
+
 enum Word
 {
     any,

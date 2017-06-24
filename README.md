@@ -234,6 +234,12 @@ newlines as well.
 
 Parses as many newline characters as it can, but no less than one.
 
+## maybeNewlines
+
+`auto maybeNewlines(B, C = char)()`.
+
+Parses as many newline characters as it can, maybe even 0.
+
 ## word
 
 `auto word(B, C = char)(Word type, int minLength = 1, int maxLength = -1)`.
