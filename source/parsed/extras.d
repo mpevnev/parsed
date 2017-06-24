@@ -162,7 +162,9 @@ unittest
 
 /* ---------- multi-character combinations of the above ---------- */
 
-/* Parses a whole line (with or without terminating newline). Always succeeds. */
+/* Parses a whole line (with or without terminating newline). Note that
+   'keepTerminator' option only affects '.parsed', the terminating newline is
+   always removed from input. Always succeeds. */
 auto
 line(B, C = char)(bool keepTerminator)
     if (isSomeChar!C)

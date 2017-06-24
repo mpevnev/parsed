@@ -210,7 +210,9 @@ Parses a single '\n' or '\r'.
 
 `auto line(B, C = char)(bool keepTerminator)`.
 
-Parses a whole line (with or without terminating newline). Always succeeds.
+Parses a whole line. Note that 'keepTerminator' parameter only affects whether
+or not newline is included in the `.parsed`, it's always removed from the
+input.  Always succeeds.
 
 ## someWhite
 
