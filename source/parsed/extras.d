@@ -563,3 +563,47 @@ unittest
     assert(res3.success);
     assert(res3.parsed == " 1 2 3 ");
 }
+
+/* Parses text until a given parser succeeds. The part that matches the given
+   parser is removed from the input. Fails if nothing matches the parser.
+ */
+auto
+upTo(B, S = string)(Parser!(B, S) parser, bool keepTerminator = false)
+    if (isSomeString!S)
+{
+    class Res: Parser!(B, S)
+    {
+        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        {
+            auto cur = toParse;
+            size_t parsed = 0;
+            while (cur.left.length > 0) {
+                auto maybeDone = parser.run(cur);
+                if (maybeDone.success) {
+                    if (keepTerminator) parsed += maybeDone.parsed.length;
+                    return maybeDone.succeed(toParse.left[0 .. parsed]);
+                }
+                parsed++;
+                cur.left = cur.left[1 .. $];
+            }
+            return toParse.fail;
+        }
+    }
+    return new Res();
+}
+unittest
+{
+    string str1 = "foo bar! baz";
+    string str2 = "foo bar";
+    auto s1 = ParserState!int(str1);
+    auto s2 = ParserState!int(str2);
+    auto p = upTo(literal!int("!"));
+
+    auto res1 = p.run(s1);
+    assert(res1.success);
+    assert(res1.parsed == "foo bar");
+    assert(res1.left == " baz");
+
+    auto res2 = p.run(s2);
+    assert(!res2.success);
+}

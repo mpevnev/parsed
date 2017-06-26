@@ -289,3 +289,12 @@ Acts just like the first overload, except it uses parsers to determine which
 bits of text will serve as left and right components of a pair. Note that it
 will call both parsers on _every_ character in between left and right, so it's
 going to be extremely slow for longer strings.
+
+## upTo
+
+`auto upTo(B, S = string)(Parser!(B, S) parser, book keepTerminator = false)`.
+
+Parses text until a given parser matches. Fails if there's no match. Note that
+it will call the given parser on _every_ character of the string until a 
+portion of it matches, so it can be very slow for longer strings and more 
+complex parsers.
