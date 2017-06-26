@@ -488,22 +488,25 @@ unittest
     import std.conv; 
 
     string str1 = "123 12 13";
-    string str2 = "1 2 3";
-    string str3 = "foo bar";
-
-    auto digit = literal!int("1") | literal!int("2") | literal!int("3");
-    auto a = many(1, -1, digit) % (i, s) => to!int(s);
+    string str2 = "foo bar";
     auto s1 = ParserState!int(str1);
-    s1 = a.run(s1);
-    assert(s1.success);
-    assert(s1.value == 123);
-
     auto s2 = ParserState!int(str2);
-    s2 = a.run(s2);
-    assert(s2.success);
-    assert(s2.value == 1);
+    auto digit = singleChar!int(ch => '0' <= ch && ch <= '9');
 
-    assert(!a.match(str3));
+    auto p1 = many(1, -1, digit) % (res, i) => to!int(i);
+    auto p2 = many(1, -1, digit % (res, i) => res * 10 + to!int(i));
+
+    auto res1_1 = p1.run(s1);
+    assert(res1_1.success);
+    assert(res1_1.value == 123);
+    auto res1_2 = p1.run(s2);
+    assert(!res1_2.success);
+
+    auto res2_1 = p2.run(s1);
+    assert(res2_1.success);
+    assert(res2_1.value == 123);
+    auto res2_2 = p2.run(s2);
+    assert(!res2_2.success);
 }
 
 /* Uses a subparser and absorbs its built value into main chain's one by
