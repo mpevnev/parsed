@@ -565,10 +565,14 @@ unittest
 }
 
 /* Parses text until a given parser succeeds. The part that matches the given
-   parser is removed from the input. Fails if nothing matches the parser.
+   parser is removed from the input (but can optionally be left there). Fails
+   if nothing matches the parser.
  */
 auto
-upTo(B, S = string)(Parser!(B, S) parser, bool keepTerminator = false)
+upTo(B, S = string)(
+        Parser!(B, S) parser, 
+        bool keepTerminator = false,
+        bool consumeTerminator = true)
     if (isSomeString!S)
 {
     class Res: Parser!(B, S)
@@ -580,8 +584,10 @@ upTo(B, S = string)(Parser!(B, S) parser, bool keepTerminator = false)
             while (cur.left.length > 0) {
                 auto maybeDone = parser.run(cur);
                 if (maybeDone.success) {
+                    int finish = parsed;
                     if (keepTerminator) parsed += maybeDone.parsed.length;
-                    return maybeDone.succeed(toParse.left[0 .. parsed]);
+                    if (consumeTerminator) finish = parsed;
+                    return maybeDone.succeed(toParse.left[0 .. finish]);
                 }
                 parsed++;
                 cur.left = cur.left[1 .. $];
