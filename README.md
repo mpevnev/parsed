@@ -42,7 +42,7 @@ one's parsed string, resulting in only second parser's parsed string being
 passed down the parser chain. So if you do
 `auto p = literal!SomeType("foo") / literal!SomeType("bar");`, then `p` will
 succeed on any string starting with "foobar", but `.parsed` will be just "bar".
-3. `%` is the most importnant operator. It is applied to a parser on the left
+3. `%` is the most important operator. It is applied to a parser on the left
 side and a function that takes chain's built-up value and this parser's parsed
 string. The function should return new build-up value, which will replace that
 of the whole parser chain. So if you do
