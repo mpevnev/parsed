@@ -436,6 +436,25 @@ unittest
     assert(res.value == 10);
 }
 
+/* Makes a copy of '.parsed' and '.left'. Can be used to drop a long string 
+   from the memory if only a small portion of it is used. Always succeeds.
+   */
+auto
+force(B, S = string)()
+{
+    class Res: Parser!(B, S)
+    {
+        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        {
+            auto res = toParse;
+            res.left = toParse.left.dup;
+            res.parsed = toParse.parsed.dup;
+            return res.succeed;
+        }
+    }
+    return new Res();
+}
+
 /* Uses the same parser between 'min' and 'max' times. If either of 'min' and
    'max' is negative, there's no limit on corresponding allowed amount of
    times. Value is passed from each run to the next one, with resulting 

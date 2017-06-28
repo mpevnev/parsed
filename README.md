@@ -95,6 +95,14 @@ Builds a value just like `%` operator does. However, `build` can be the first
 element in a parser chain, unlike `%`, which requires a parser to be in the
 chain before it.
 
+## force
+
+`auto force(B, S = string)()`.
+
+Makes a copy of `.parsed` and `.left`. It can be useful if original text takes
+a lot of memory, while only a portion of it is left/parsed. Using 'force' can
+hint garbage collector that it's time to collect original text.
+
 ## many
 
 `auto many(B, S = string)(int min, int max, Parser!(B, S) p)`.
