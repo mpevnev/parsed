@@ -13,11 +13,11 @@ unless you enjoy writing most parsers from scratch.
 
 # Basics
 
-All parsers implement Parser interface, which is parametric in two things:
-the type of a value the parser builds up as it works, and type of the strings
-the parser can work with. String type defaults to `string`, value type has to
-be declared explicitly. Most parser-producing functions are parametric in the
-same way, except for those that take character type instead of string type.
+All parsers inherit from Parser class, which is parametric in two things: the
+type of a value the parser builds up as it works, and type of the strings the
+parser can work with. String type defaults to `string`, value type has to be
+declared explicitly. Most parser-producing functions are parametric in the same
+way, except for those that take character type instead of string type.
 
 To perform a parse, you need a parser and an initial state to feed to that
 parser.  Parser state is represented by a ParserState struct, which is
