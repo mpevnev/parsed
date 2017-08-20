@@ -4,7 +4,14 @@
 
    If you need to write a parser yourself, be sure to make it short-circuiting
    - include 'if (!toParse.success) return toParse.fail;' as the first line of
-   its 'run' method.
+   its 'run' method (unless it's oblivious, see below).
+
+   Parsers can be made 'oblivious' by setting corresponding field to true. An
+   oblivious parser doesn't care if the previous chain has failed, it'll try to
+   parse anyway. Oblivious parsers can fail or succeed as usual. This provides
+   an ability to: one, recover from parser errors (kind of like | operator
+   does), and, two, perform some operations if the chain has failed. For an
+   example of the latter see the 'throwOnFailure' parser.
 
    I also recommend making an alias with type of your built-up value and using
    that instead of having the type everywhere. This way changing it later to
@@ -28,7 +35,6 @@ struct ParserState(B, S = string) /* B(uild) and S(tring). */
     S parsed;
     B value; 
     bool success = true;
-    bool empty = false;
 
     this(B init, S toParse)
     {
@@ -46,7 +52,7 @@ struct ParserState(B, S = string) /* B(uild) and S(tring). */
     {
         auto res = this;
         res.success = false;
-        res.value = B.init;
+        res.parsed = "";
         return res;
     }
 
@@ -54,7 +60,6 @@ struct ParserState(B, S = string) /* B(uild) and S(tring). */
     {
         auto res = this;
         res.success = true;
-        res.empty = false;
         return res;
     }
 
@@ -62,7 +67,6 @@ struct ParserState(B, S = string) /* B(uild) and S(tring). */
     {
         auto res = this;
         res.success = true;
-        res.empty = false;
         res.parsed = withParsed;
         return res;
     }
@@ -97,25 +101,29 @@ struct ParserState(B, S = string) /* B(uild) and S(tring). */
     {
         auto res = this;
         res.success = true;
-        res.empty = true;
+        res.parsed = null;
         return res;
     }
 }
 
 /* B(uild) and S(tring). */
-interface Parser(B, S = string) 
+class Parser(B, S = string) 
     if (isSomeString!S)
 {
     private:
         alias State = ParserState!(B, S);
         alias ThisParser = Parser!(B, S);
-    
+
+    /* This should be true if the parser is able to operate even if the chain
+       is in the failed state. */
+    protected bool oblivious = false;
+
     public:
 
     /* ---------- high-level operations ---------- */
 
     /* Main method. */
-    State run(State toParse);
+    abstract State run(State toParse);
 
     /* Runs the parser on the given text. */
     final State run(S text)
@@ -137,77 +145,144 @@ interface Parser(B, S = string)
     {
         class Res: ThisParser
         {
-            State run(State toParse)
+            override State run(State toParse)
             {
-                auto res = this.outer.run(toParse);
-                if (res.success) {
-                    res.value = dg(res.value, res.parsed);
-                    return res.succeed;
+                auto outer = this.outer;
+                if (outer.oblivious || toParse.success) {
+                    auto res = outer.run(toParse);
+                    if (res.success) {
+                        res.value = dg(res.value, res.parsed);
+                        return res.succeed;
+                    } else {
+                        return res.fail;
+                    }
                 } else {
-                    return toParse.fail; 
-                }
-            }
-        }
+                    return toParse.fail;
+                } /* if oblivious */
+            } /* run */
+        } /* Res */
         return new Res();
-    }
+    } /* build */
 
-    /* Feeds this parser's state to another parser. Succeeds if both parsers
-       do.
-       */
+    /* Feeds this parser's state to another parser. Succeeds if both parsers do. */
     final ThisParser chain(ThisParser other, bool concat)
     {
         class Res: ThisParser
         {
-            State run(State toParse)
-            {
-                if (!toParse.success) return toParse.fail;
-                auto res1 = this.outer.run(toParse);
-                if (res1.success) {
-                    auto res2 = other.run(res1);
-                    if (res2.success) {
-                        if (res2.empty)
-                            res2.parsed = res1.parsed;
-                        else if (concat)
-                            res2.parsed = res1.parsed ~ res2.parsed;
-                        return res2.succeed;
-                    }
-                }
-                return toParse.fail;
+            this() 
+            { 
+                oblivious = this.outer.oblivious || other.oblivious; 
             }
-        }
+
+            override State run(State toParse)
+            {
+                auto outer = this.outer;
+                State res1, res2;
+                import std.stdio;
+                if (outer.oblivious && other.oblivious) {
+                    /* Run both. They don't care if the chain or each other
+                       have failed. */
+                    res1 = outer.run(toParse);
+                    res2 = other.run(res1);
+                } else if (outer.oblivious && !other.oblivious) {
+                    /* Run first even if the chain has failed. */
+                    res1 = outer.run(toParse);
+                    if (!res1.success) return toParse.fail;
+                    res2 = other.run(res1);
+                } else if (!outer.oblivious && other.oblivious) {
+                    /* Run the second even if the first has failed. */
+                    if (toParse.success) {
+                        res1 = outer.run(toParse);
+                        res2 = other.run(res1);
+                    } else {
+                        return toParse.fail;
+                    }
+                } else {
+                    /* Normal case, both must succeed. */
+                    if (toParse.success) {
+                        res1 = outer.run(toParse);
+                        if (!res1.success) return toParse.fail;
+                        res2 = other.run(res1);
+                        if (!res2.success) return toParse.fail;
+                    } else {
+                        return toParse.fail;
+                    }
+                } /* if combination of obliviousness */
+                if (res2.success) {
+                    if (concat) 
+                        res2.parsed = res1.parsed ~ res2.parsed;
+                    return res2.succeed;
+                } else  {
+                    return toParse.fail;
+                }
+            } /* run */
+        } /* Res */
         return new Res();
-    }
+    } /* chain */
 
     /* Returns state of the first parser of the two to succeed. */
     final ThisParser any(ThisParser other)
     {
         class Res: ThisParser
         {
-            State run(State toParse)
+            override State run(State toParse)
             {
-                if (!toParse.success) return toParse.fail;
-                auto res = this.outer.run(toParse);
-                if (res.success) return res;
-                return other.run(toParse);
-            }
-        }
+                auto outer = this.outer;
+                if (toParse.success) {
+                    auto res1 = outer.run(toParse);
+                    if (res1.success) return res1.succeed;
+                    auto res2 = other.run(toParse);
+                    if (res2.success) return res2.succeed;
+                    return toParse.fail;
+                } else {
+                    if (outer.oblivious) {
+                        auto res1 = outer.run(toParse);
+                        if (res1.success) return res1.succeed;
+                    }
+                    if (other.oblivious) {
+                        auto res2 = outer.run(toParse);
+                        if (res2.success) return res2.succeed;
+                    }
+                    return toParse.fail;
+                } /* if toParse.success */
+            } /* run */
+        } /* Res */
         return new Res();
-    }
+    } /* any */
 
-    /* Make a new parser that passes previous parser's parsed text
-       transparently. */
+    /* Make a new parser that discards original parser's 'parsed' and sets it
+       to an empty string */
     final ThisParser discard()
     {
-        class Res: Parser
+        class Res: ThisParser
         {
-            State run(State toParse)
+            override State run(State toParse)
             {
-                if (!toParse.success) return toParse.fail;
-                State res = this.outer.run(toParse);
-                if (res.success)
-                    return res.pass;
-                else
-                    return res;
+                auto outer = this.outer;
+                if (toParse.success || outer.oblivious) {
+                    auto res = outer.run(toParse);
+                    if (res.success) {
+                        res.parsed = "";
+                        return res.succeed;
+                    } else {
+                        return toParse.fail;
+                    }
+                } else {
+                    return toParse.fail;
+                }
+            } /* run */
+        } /* Res */
+        return new Res();
+    } /* discard */
+
+    final ThisParser makeOblivious()
+    {
+        class Res: ThisParser
+        {
+            this() { oblivious = true; }
+            override State run(State toParse)
+            {
+                return this.outer.run(toParse);
             }
         }
         return new Res();
@@ -251,6 +326,7 @@ unittest
 {
     import std.conv;
 
+    /*
     string str1 = "foo bar baz";
 
     auto p1 = literal!int("foo");
@@ -261,16 +337,19 @@ unittest
 
     auto p3 = p1 * literal!int("BAR");
     assert(!p3.match(str1));
+    */
 
     string str2 = "1 2 3";
     auto state = ParserState!int(0, str2);
 
+    import std.stdio;
     auto p = (literal!int("1") | literal!int("2") | literal!int("3"))
         % (int i, string s) => i + to!int(s);
     auto space = literal!int(" ");
     auto sum = p * space * p * space * p;
     auto res = sum.run(state);
     assert(res.success);
+    assert(res.parsed == "1 2 3");
     assert(res.value == 6);
 }
 unittest
@@ -279,7 +358,7 @@ unittest
     auto s1 = ParserState!int(str1);
 
     auto p1 = literal!int("foo")
-        / literal!int(" ").discard
+        * literal!int(" ").discard
         * literal!int("bar");
 
     auto res1 = p1.run(str1);
@@ -300,7 +379,7 @@ literal(B, S = string)(S str, bool consumeInput = true, bool caseSensitive = tru
     if (!caseSensitive) use = use.toLower;
     class Res: Parser!(B, S)
     {
-        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             if (!toParse.success) return toParse.fail;
             S checkAgainst = toParse.left;
@@ -340,7 +419,7 @@ fail(B, S = string)()
 {
     class Res: Parser!(B, S)
     {
-        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             return toParse.fail;
         }
@@ -364,7 +443,7 @@ succeed(B, S = string)()
 {
     class Res: Parser!(B, S)
     {
-        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             return toParse.succeed;
         }
@@ -384,7 +463,7 @@ test(B, S = string)(bool delegate (B, S) tst)
 {
     class Res: Parser!(B, S)
     {
-        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             if (!toParse.success) return toParse.fail;
             if (tst(toParse.value, toParse.parsed))
@@ -415,7 +494,7 @@ build(B, S = string)(B delegate (B, S) dg)
 {
     class Res: Parser!(B, S)
     {
-        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             if (!toParse.success) return toParse.fail;
             auto res = toParse;
@@ -444,7 +523,7 @@ force(B, S = string)()
 {
     class Res: Parser!(B, S)
     {
-        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             auto res = toParse;
             res.left = toParse.left.dup;
@@ -466,7 +545,7 @@ many(B, S = string)(int min, int max, Parser!(B, S) p)
 {
     class Res: Parser!(B, S)
     {
-        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             import std.stdio;
 
@@ -537,7 +616,7 @@ absorb(B, B2, S = string)(B delegate (B, B2, S) dg, Parser!(B2, S) subparser)
 {
     class Res: Parser!(B, S)
     {
-        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             if (!toParse.success) return toParse.fail;
             auto sendToSub = ParserState!(B2, S)(toParse.left);
@@ -578,7 +657,7 @@ morph(B, S = string)(S delegate (S) dg)
 {
     class Res: Parser!(B, S)
     {
-        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             if (!toParse.success) return toParse.fail;
             return toParse.succeed(dg(toParse.parsed));
@@ -607,7 +686,7 @@ singleChar(B, C = char)(bool delegate (C) test)
     alias S = immutable(C)[];
     class Res: Parser!(B, S)
     {
-        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             if (!toParse.success) return toParse.fail;
             if (toParse.left.length == 0) return toParse.fail;
@@ -638,6 +717,96 @@ unittest
     assert(res.value == 123);
 }
 
+/* Throws an exception if the parser chain is in the success state. */
+auto 
+throwOnSuccess(B, S = string)(Exception exc)
+    if (isSomeString!S)
+{
+    class Res: Parser!(B, S)
+    {
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
+        {
+            if (!toParse.success) return toParse.fail;
+            throw exc;
+        }
+    }
+    return new Res();
+}
+unittest
+{
+    import std.exception;
+
+    string str1 = "foobar";
+    string str2 = "fooBAR";
+    auto p = literal!int("foo") / 
+        literal!int("bar") / 
+        throwOnSuccess!int(new Exception("Parse succesful"));
+
+    assertThrown(p.match(str1));
+    assertNotThrown(p.match(str2));
+}
+
+/* Throws an exception if the parser chain is in the failed state. */
+auto 
+throwOnFailure(B, S = string)(Exception exc)
+    if (isSomeString!S)
+{
+    class Res: Parser!(B, S)
+    {
+        this() { oblivious = true; }
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
+        {
+            if (toParse.success) 
+                return toParse.succeed;
+            else
+                throw exc;
+        }
+    }
+    return new Res();
+}
+unittest
+{
+    import std.exception;
+
+    string str1 = "foobar";
+    string str2 = "fooBAR";
+    auto p = literal!int("foo") / 
+        literal!int("bar") / 
+        throwOnFailure!int(new Exception("Parse succesful"));
+
+    assertNotThrown(p.match(str1));
+    assertThrown(p.match(str2));
+}
+
+/* Throws an exception. */
+auto 
+throwAnyway(B, S = string)(Exception exc)
+    if (isSomeString!S)
+{
+    class Res: Parser!(B, S)
+    {
+        this() { oblivious = true; }
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
+        {
+            throw exc;
+        }
+    }
+    return new Res();
+}
+unittest
+{
+    import std.exception;
+
+    string str1 = "foobar";
+    string str2 = "fooBAR";
+    auto p = literal!int("foo") / 
+        literal!int("bar") / 
+        throwAnyway!int(new Exception("Throwing in any case"));
+
+    assertThrown(p.match(str1));
+    assertThrown(p.match(str2));
+}
+
 /* ---------- conditional parsers ---------- */
 
 /* Be extra careful with the following parsers: they always succeed and are not
@@ -652,7 +821,7 @@ charWhile(B, C = char)(bool delegate (C) test, bool keepTerminator = true)
     alias S = immutable(C)[];
     class Res: Parser!(B, S)
     {
-        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             if (!toParse.success) return toParse.fail;
             auto res = toParse;
@@ -699,7 +868,7 @@ repeatWhile(B, S = string)(bool delegate (B, S, int) test, Parser!(B, S) p)
 {
     class Res: Parser!(B, S)
     {
-        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             if (!toParse.success) return toParse.fail;
 

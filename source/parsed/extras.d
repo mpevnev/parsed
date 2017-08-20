@@ -397,7 +397,7 @@ balanced(B, C = char)(C left, C right, bool keepPair = false)
     alias S = immutable(C)[];
     class Res: Parser!(B, S)
     {
-        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             if (!toParse.success) return toParse.fail;
             /* There must be space for a pair. */
@@ -493,7 +493,7 @@ balanced(B, S = string)(Parser!(B, S) left, Parser!(B, S) right, bool keepPair =
 {
     class Res: Parser!(B, S)
     {
-        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             if (!toParse.success) return toParse.fail;
 
@@ -577,7 +577,7 @@ upTo(B, S = string)(
 {
     class Res: Parser!(B, S)
     {
-        ParserState!(B, S) run(ParserState!(B, S) toParse)
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             auto cur = toParse;
             size_t parsed = 0;
