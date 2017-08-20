@@ -584,7 +584,7 @@ upTo(B, S = string)(
             while (cur.left.length > 0) {
                 auto maybeDone = parser.run(cur);
                 if (maybeDone.success) {
-                    int finish = parsed;
+                    size_t finish = parsed;
                     if (keepTerminator) parsed += maybeDone.parsed.length;
                     if (consumeTerminator) finish = parsed;
                     return maybeDone.succeed(toParse.left[0 .. finish]);
