@@ -136,6 +136,24 @@ Takes previous parser's `.parsed` and transforms it using the given delegate.
 Parses a single character. Succeeds if the character passes the given test,
 fail on empty string or if the test is not passed.
 
+## throwOnSuccess
+
+`auto throwOnSuccess(B, S = string)(Exception exc)`.
+
+Throws a given exception if the chain before has succeeded.
+
+## throwOnFailure
+
+`auto throwOnFailure(B, S = string)(Exception exc)`.
+
+Throws a given exception if the chain before has failed. 
+
+## throwAnyway
+
+`auto throwAnyway(B, S = string)(Exception exc)`.
+
+Throws a given exception.
+
 ## charWhile
 
 `auto charWhile(B, C = char)(bool delegate (C) test, bool keepTerminator = true)`.
