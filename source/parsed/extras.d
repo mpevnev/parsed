@@ -9,6 +9,7 @@
 
 module parsed.extras;
 
+import std.range;
 import std.traits;
 
 public import parsed.core;
@@ -612,4 +613,59 @@ unittest
 
     auto res2 = p.run(s2);
     assert(!res2.success);
+}
+
+/* Behaves just like the 'literal' parser from core, but takes a range of 
+   strings as patterns. */
+auto
+multiliteral(B, S = string, R)(R range, bool consumeInput = true,  bool caseSensitive = true)
+    if (isInputRange!R)
+{
+    import std.algorithm;
+    import std.string;
+
+    auto literals = range.map!(x => caseSensitive ? x : x.toLower);
+    class Res: Parser!(B, S)
+    {
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
+        {
+            if (!toParse.success) return toParse.fail;
+            foreach (literal; literals) {
+                S checkAgainst = caseSensitive ? toParse.left : toParse.left.toLower;
+                if (checkAgainst.startsWith(literal)) {
+                    if (consumeInput)
+                        toParse.left = toParse.left[literal.length .. $];
+                    return toParse.succeed(literal);
+                }
+            }
+            return toParse.fail;
+        }
+    }
+    return new Res();
+}
+unittest
+{
+    import std.array; /* This is required to turn arrays into ranges. */
+
+    string str1 = "foo";
+    string str2 = "bar";
+    string str3 = "baz";
+
+    auto s1 = ParserState!int(str1);
+    auto s2 = ParserState!int(str2);
+    auto s3 = ParserState!int(str3);
+    
+    auto p1 = multiliteral!int(["foo", "bar"]);
+
+    auto res1_1 = p1.run(s1);
+    auto res1_2 = p1.run(s2);
+    auto res1_3 = p1.run(s3);
+
+    assert(res1_1.success);
+    assert(res1_1.parsed == "foo");
+
+    assert(res1_2.success);
+    assert(res1_2.parsed == "bar");
+
+    assert(!res1_3.success);
 }
