@@ -324,3 +324,10 @@ Parses text until a given parser matches. Fails if there's no match. Note that
 it will call the given parser on _every_ character of the string until a 
 portion of it matches, so it can be very slow for longer strings and more 
 complex parsers.
+
+## multiliteral
+
+`auto multiliteral(B, S = string, R)(R range, bool consumeInput = true, bool caseSensitive = true)`.
+
+A convenience parser to search for any of the parsers given as a range. Just
+like `literal` may optionally not consume input and be case insensitive.
