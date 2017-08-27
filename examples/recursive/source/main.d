@@ -102,9 +102,3 @@ parse(string s)
         }
     }
 }
-
-bool hasComma(string s)
-{
-    import std.string;
-    return s.count(',') > 0;
-}
