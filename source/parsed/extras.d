@@ -619,7 +619,7 @@ unittest
    strings as patterns. */
 auto
 multiliteral(B, S = string, R)(R range, bool consumeInput = true,  bool caseSensitive = true)
-    if (isInputRange!R)
+    if (isInputRange!R && is(ElementType!R: S))
 {
     import std.algorithm;
     import std.string;
