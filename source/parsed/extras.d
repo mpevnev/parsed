@@ -619,7 +619,7 @@ unittest
    strings as patterns. */
 auto
 multiliteral(B, S = string, R)(R range, bool consumeInput = true,  bool caseSensitive = true)
-    if (isInputRange!R && is(ElementType!R: S))
+    if (isSomeString!S && isInputRange!R && is(ElementType!R: S))
 {
     import std.algorithm;
     import std.string;
@@ -645,17 +645,19 @@ multiliteral(B, S = string, R)(R range, bool consumeInput = true,  bool caseSens
 }
 unittest
 {
-    import std.array; /* This is required to turn arrays into ranges. */
+    import std.algorithm;
+    import std.string;
 
     string str1 = "foo";
     string str2 = "bar";
-    string str3 = "baz";
+    string str3 = "BAR";
 
     auto s1 = ParserState!int(str1);
     auto s2 = ParserState!int(str2);
     auto s3 = ParserState!int(str3);
     
     auto p1 = multiliteral!int(["foo", "bar"]);
+    auto p2 = multiliteral!int(["foo", "bar"].map!(x => x.toUpper));
 
     auto res1_1 = p1.run(s1);
     auto res1_2 = p1.run(s2);
@@ -668,4 +670,13 @@ unittest
     assert(res1_2.parsed == "bar");
 
     assert(!res1_3.success);
+
+    auto res2_1 = p2.run(s1);
+    auto res2_2 = p2.run(s2);
+    auto res2_3 = p2.run(s3);
+
+    assert(!res2_1.success);
+    assert(!res2_2.success);
+    assert(res2_3.success);
+    assert(res2_3.parsed == "BAR");
 }
