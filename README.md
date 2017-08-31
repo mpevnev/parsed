@@ -154,6 +154,12 @@ Throws a given exception if the chain before has failed.
 
 Throws a given exception.
 
+## everything
+
+`auto everything(B, S = string)()`.
+
+Matches until the end of input. Always succeeds.
+
 ## charWhile
 
 `auto charWhile(B, C = char)(bool delegate (C) test, bool keepTerminator = true)`.

@@ -807,6 +807,41 @@ unittest
     assertThrown(p.match(str2));
 }
 
+/* Parses the rest of the input. */
+auto
+everything(B, S = string)()
+    if (isSomeString!S)
+{
+    class Res: Parser!(B, S) 
+    {
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
+        {
+            if (!toParse.success) return toParse.fail;
+            toParse.parsed = toParse.left;
+            toParse.left = "";
+            return toParse.succeed;
+        }
+    }
+    return new Res();
+}
+unittest
+{
+    string str1 = "foobar";
+
+    auto s1 = ParserState!int(str1);
+
+    auto p1 = everything!int;
+    auto p2 = literal!int("foo") / everything!int;
+
+    auto res1_1 = p1.parse(s1);
+    assert(res1_1.success);
+    assert(res1_1.parsed == "foobar");
+
+    auto res2_1 = p2.parse(s1);
+    assert(res2_1.success);
+    assert(res2_1.parsed == "bar");
+}
+
 /* ---------- conditional parsers ---------- */
 
 /* Be extra careful with the following parsers: they always succeed and are not
