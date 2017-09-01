@@ -111,8 +111,10 @@ class Parser(B, S = string)
     if (isSomeString!S)
 {
     private:
-        alias State = ParserState!(B, S);
-        alias ThisParser = Parser!(B, S);
+
+    alias State = ParserState!(B, S);
+    alias ThisParser = Parser!(B, S);
+    alias Group = ParserGroup!(B, S);
 
     /* This should be true if the parser is able to operate even if the chain
        is in the failed state. */
@@ -141,7 +143,7 @@ class Parser(B, S = string)
     /* ---------- parser combinations ---------- */
 
     /* Builds up a value. */
-    final ThisParser build(B delegate (B, S) dg)
+    ThisParser build(B delegate (B, S) dg)
     {
         class Res: ThisParser
         {
@@ -164,95 +166,42 @@ class Parser(B, S = string)
         return new Res();
     } /* build */
 
-    /* Feeds this parser's state to another parser. Succeeds if both parsers do. */
-    final ThisParser chain(ThisParser other, bool concat)
+    Group chain(ThisParser other, bool concat, bool prepend)
     {
-        class Res: ThisParser
-        {
-            this() 
-            { 
-                oblivious = this.outer.oblivious || other.oblivious; 
-            }
+        auto res = new Group(Group.GroupType.and, false);
+        if (prepend)
+            res.parsers = [other, this];
+        else
+            res.parsers = [this, other];
+        res.concat = [false, concat];
+        return res;
+    }
 
-            override State run(State toParse)
-            {
-                auto outer = this.outer;
-                State res1, res2;
-                import std.stdio;
-                if (outer.oblivious && other.oblivious) {
-                    /* Run both. They don't care if the chain or each other
-                       have failed. */
-                    res1 = outer.run(toParse);
-                    res2 = other.run(res1);
-                } else if (outer.oblivious && !other.oblivious) {
-                    /* Run first even if the chain has failed. */
-                    res1 = outer.run(toParse);
-                    if (!res1.success) return toParse.fail;
-                    res2 = other.run(res1);
-                } else if (!outer.oblivious && other.oblivious) {
-                    /* Run the second even if the first has failed. */
-                    if (toParse.success) {
-                        res1 = outer.run(toParse);
-                        res2 = other.run(res1);
-                    } else {
-                        return toParse.fail;
-                    }
-                } else {
-                    /* Normal case, both must succeed. */
-                    if (toParse.success) {
-                        res1 = outer.run(toParse);
-                        if (!res1.success) return toParse.fail;
-                        res2 = other.run(res1);
-                        if (!res2.success) return toParse.fail;
-                    } else {
-                        return toParse.fail;
-                    }
-                } /* if combination of obliviousness */
-                if (res2.success) {
-                    if (concat) 
-                        res2.parsed = res1.parsed ~ res2.parsed;
-                    return res2.succeed;
-                } else  {
-                    return toParse.fail;
-                }
-            } /* run */
-        } /* Res */
-        return new Res();
-    } /* chain */
+    Group chain(Group other, bool concat, bool prepend)
+    {
+        return other.chain(this, concat, prepend);
+    }
 
     /* Returns state of the first parser of the two to succeed. */
-    final ThisParser any(ThisParser other)
+    Group any(ThisParser other, bool prepend)
     {
-        class Res: ThisParser
-        {
-            override State run(State toParse)
-            {
-                auto outer = this.outer;
-                if (toParse.success) {
-                    auto res1 = outer.run(toParse);
-                    if (res1.success) return res1.succeed;
-                    auto res2 = other.run(toParse);
-                    if (res2.success) return res2.succeed;
-                    return toParse.fail;
-                } else {
-                    if (outer.oblivious) {
-                        auto res1 = outer.run(toParse);
-                        if (res1.success) return res1.succeed;
-                    }
-                    if (other.oblivious) {
-                        auto res2 = outer.run(toParse);
-                        if (res2.success) return res2.succeed;
-                    }
-                    return toParse.fail;
-                } /* if toParse.success */
-            } /* run */
-        } /* Res */
-        return new Res();
-    } /* any */
+        auto res = new Group(Group.GroupType.or, false);
+        if (prepend)
+            res.parsers = [other, this];
+        else
+            res.parsers = [this, other];
+        return res;
+    }
+
+    /* An overload for Groups. */
+    Group any(Group other, bool prepend)
+    {
+        return other.any(this, prepend);
+    }
 
     /* Make a new parser that discards original parser's 'parsed' and sets it
        to an empty string */
-    final ThisParser discard()
+    ThisParser discard()
     {
         class Res: ThisParser
         {
@@ -275,7 +224,7 @@ class Parser(B, S = string)
         return new Res();
     } /* discard */
 
-    final ThisParser makeOblivious()
+    ThisParser makeOblivious()
     {
         class Res: ThisParser
         {
@@ -292,34 +241,34 @@ class Parser(B, S = string)
 
     /* Infix analog of 'chain' without parsed string concatenation. Think of 
        '/' as a wall where flow stops. */
-    final ThisParser opBinary(string op)(ThisParser other)
+    Group opBinary(string op)(ThisParser other)
         if (op == "/")
     {
-        return chain(other, false);
+        return chain(other, false, false);
     }
 
     /* Infix analog of 'chain' with parsed string concatenation. Think of '*'
        as of a piece of chain. */
-    final ThisParser opBinary(string op)(ThisParser other)
+    Group opBinary(string op)(ThisParser other)
         if (op == "*")
     {
-        return chain(other, true);
+        return chain(other, true, false);
     }
 
     /* Infix analog of 'build'. I've got no clever analogy as to why it's '%'.
        The real reason is that '%' is in the same precedence group as '*' and
        '/'. */
-    final ThisParser opBinary(string op)(B delegate (B, S) dg)
+    ThisParser opBinary(string op)(B delegate (B, S) dg)
         if (op == "%")
     {
         return build(dg);
     }
 
     /* Infix analog of 'any' */
-    final ThisParser opBinary(string op)(ThisParser other)
+    Group opBinary(string op)(ThisParser other)
         if (op == "|")
     {
-        return any(other);
+        return any(other, false);
     }
 }
 unittest
@@ -342,7 +291,6 @@ unittest
     string str2 = "1 2 3";
     auto state = ParserState!int(0, str2);
 
-    import std.stdio;
     auto p = (literal!int("1") | literal!int("2") | literal!int("3"))
         % (int i, string s) => i + to!int(s);
     auto space = literal!int(" ");
@@ -364,6 +312,212 @@ unittest
     auto res1 = p1.run(str1);
     assert(res1.success);
     assert(res1.parsed == "foobar");
+}
+
+private class ParserGroup(B, S = string): Parser!(B, S)
+    if (isSomeString!S)
+{
+    private:
+
+    Parser!(B, S)[] parsers;
+    bool[] concat;
+    GroupType type;
+    bool monolithic;
+
+    alias Group = ParserGroup!(B, S);
+    alias ThisParser = Parser!(B, S);
+    alias State = ParserState!(B, S);
+
+    enum GroupType
+    {
+        and,
+        or
+    }
+
+    this(GroupType type, bool monolithic)
+    {
+        this.type = type;
+        this.monolithic = monolithic;
+    }
+
+    this(Group original, bool monolithic)
+    {
+        parsers = original.parsers.dup;
+        concat = original.concat.dup;
+        type = original.type;
+        this.monolithic = monolithic;
+    }
+
+    public:
+
+    final override State run(State toParse)
+    {
+        if (type == GroupType.and) {
+            /* Sequential application of parsers. */
+            State curState = toParse;
+            foreach (i, current; parsers) {
+                if (current.oblivious || curState.success) {
+                    State newState = current.run(curState);
+                    if (newState.success) {
+                        if (concat[i]) 
+                            newState.parsed = curState.parsed ~ newState.parsed;
+                        curState = newState.succeed;
+                    } else {
+                        curState = curState.fail;
+                    }
+                } else {
+                    curState = curState.fail;
+                }
+            } /* foreach parser */
+            return curState;
+        } else {
+            /* Alternative application of parsers. */
+            State save = toParse;
+            foreach (current; parsers) {
+                if (current.oblivious || toParse.success) {
+                    auto maybeRes = current.run(save);
+                    if (maybeRes.success) return maybeRes.succeed;
+                }
+            }
+            return toParse.fail;
+        } /* if type == GroupType.and */
+    } /* run */
+
+    alias run = ThisParser.run;
+
+    final void makeMonolithic()
+    {
+        monolithic = true;
+    }
+
+    /* Either append or prepend a parser to the chain. */
+    override Group chain(ThisParser other, bool concat, bool prepend)
+    {
+        /* We simply wrap the group and the other parser in a new group in two
+           cases: when the group is monolithic, or when we can't chain extra
+           parsers to the group (because it's not an actual chain, it's a
+           choice construct). */
+        if (monolithic || type == GroupType.or) {
+            auto res = new Group(this, false);
+            if (prepend) {
+                res.parsers = [other, this];
+                res.concat = [false, concat];
+            } else {
+                res.parsers = [this, other];
+                res.concat = [false, concat];
+            }
+            return res;
+        } else {
+            auto res = new Group(this, false);
+            if (prepend) {
+                res.parsers = other ~ parsers;
+                res.concat = false ~ this.concat;
+            } else {
+                res.parsers = parsers ~ other;
+                res.concat = this.concat ~ concat;
+            }
+            return res;
+        } /* if monolithic */
+    } /* chain */
+
+    /* Same, but add a chain instead of an individual parser. */
+    override Group chain(Group other, bool concat, bool prepend)
+    {
+        auto res = new Group(GroupType.and, false);
+        /* We treat OR groups as monolithic, because we can't add elements to
+           them in this method. */
+        if (monolithic && other.monolithic 
+                || type == GroupType.or 
+                || other.type == GroupType.or) {
+            /* Produce a simple Group that uses both of these without
+               unwrapping them. */
+            if (prepend) 
+                res.parsers = [other, this];
+            else
+                res.parsers = [this, other];
+            res.concat = [false, concat];
+        } else if (monolithic && !other.monolithic) {
+            if (prepend) {
+                res.parsers = other.parsers ~ this;
+                res.concat = other.concat ~ concat;
+            } else {
+                res.parsers = this ~ other.parsers;
+                res.concat = false ~ other.concat;
+            }
+        } else if (!monolithic && other.monolithic) {
+            if (prepend) {
+                res.parsers = other ~ parsers;
+                res.concat = false ~ this.concat;
+                res.concat[1] = concat;
+            } else {
+                res.parsers = parsers ~ other;
+                res.concat = this.concat ~ concat;
+            }
+        } else {
+            if (prepend) {
+                size_t middle = other.parsers.length;
+                res.parsers = other.parsers ~ parsers;
+                res.concat = other.concat ~ this.concat;
+                res.concat[middle] = concat;
+            } else {
+                size_t middle = parsers.length;
+                res.parsers = parsers ~ other.parsers;
+                res.concat = this.concat ~ other.concat;
+                res.concat[middle] = concat;
+            }
+        } /* if monilithic combination */
+        return res;
+    } /* chain */
+
+    override Group any(ThisParser other, bool prepend)
+    {
+        /* We treat AND groups as monolithic because we can't add elements to
+           them in this method. */
+        auto res = new Group(GroupType.or, false);
+        if (monolithic || type == GroupType.and) {
+            if (prepend) 
+                res.parsers = [other, this];
+            else
+                res.parsers = [this, other];
+        } else {
+            if (prepend) 
+                res.parsers = other ~ parsers;
+            else
+                res.parsers = parsers ~ other;
+        }
+        return res;
+    }
+
+    override Group any(Group other, bool prepend)
+    {
+        /* We treat AND groups as monolithic because we can't add elements to
+           them in this method. */
+        auto res = new Group(GroupType.or, false);
+        if (monolithic && other.monolithic
+                || type == GroupType.and 
+                || type == GroupType.and) {
+            if (prepend)
+                res.parsers = [other, this];
+            else
+                res.parsers = [this, other];
+        } else if (monolithic && !other.monolithic) {
+            if (prepend)
+                res.parsers = other.parsers ~ this;
+            else
+                res.parsers = this ~ other.parsers;
+        } else if (!monolithic && other.monolithic) {
+            if (prepend)
+                res.parsers = other ~ parsers;
+            else
+                res.parsers = parsers ~ other;
+        } else {
+            if (prepend)
+                res.parsers = other.parsers ~ parsers;
+            else
+                res.parsers = parsers ~ other.parsers;
+        } /* if monolithic combination */
+        return res;
+    } /* any */
 }
 
 /* ---------- fundamental parsers ---------- */
@@ -547,8 +701,6 @@ many(B, S = string)(int min, int max, Parser!(B, S) p)
     {
         override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
-            import std.stdio;
-
             if (!toParse.success) return toParse.fail;
             S parsed;
             ParserState!(B, S) cur = toParse.succeed;
@@ -833,11 +985,11 @@ unittest
     auto p1 = everything!int;
     auto p2 = literal!int("foo") / everything!int;
 
-    auto res1_1 = p1.parse(s1);
+    auto res1_1 = p1.run(s1);
     assert(res1_1.success);
     assert(res1_1.parsed == "foobar");
 
-    auto res2_1 = p2.parse(s1);
+    auto res2_1 = p2.run(s1);
     assert(res2_1.success);
     assert(res2_1.parsed == "bar");
 }

@@ -166,7 +166,7 @@ unittest
 /* Parses a whole line (with or without terminating newline). Note that
    'keepTerminator' option only affects '.parsed', the terminating newline is
    always removed from input. Always succeeds. */
-auto
+Parser!(B, immutable(C)[]) /* auto doesn't work here. */
 line(B, C = char)(bool keepTerminator)
     if (isSomeChar!C)
 {
