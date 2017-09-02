@@ -618,7 +618,7 @@ unittest
 /* Behaves just like the 'literal' parser from core, but takes a range of 
    strings as patterns. */
 auto
-multiliteral(B, S = string, R)(R range, bool consumeInput = true,  bool caseSensitive = true)
+multiliteral(B, S = string, R)(R range, bool consumeInput = true, bool caseSensitive = true)
     if (isSomeString!S && isInputRange!R && is(ElementType!R: S))
 {
     import std.algorithm;
