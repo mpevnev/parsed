@@ -4,14 +4,14 @@
 
    If you need to write a parser yourself, be sure to make it short-circuiting
    - include 'if (!toParse.success) return toParse.fail;' as the first line of
-   its 'run' method (unless it's oblivious, see below).
+   its 'run' method (unless it's inherently oblivious, see below).
 
-   Parsers can be made 'oblivious' by setting corresponding field to true. An
-   oblivious parser doesn't care if the previous chain has failed, it'll try to
-   parse anyway. Oblivious parsers can fail or succeed as usual. This provides
-   an ability to: one, recover from parser errors (kind of like | operator
-   does), and, two, perform some operations if the chain has failed. For an
-   example of the latter see the 'throwOnFailure' parser.
+   Parsers can be made 'oblivious' by using makeOblivious method. An oblivious
+   parser doesn't care if the previous chain has failed, it'll try to parse
+   anyway. Oblivious parsers can fail or succeed as usual. This provides an
+   ability to: one, recover from parser errors (kind of like | operator does),
+   and, two, perform some operations if the chain has failed. For an example of
+   the latter see the 'throwOnFailure' parser.
 
    I also recommend making an alias with type of your built-up value and using
    that instead of having the type everywhere. This way changing it later to
@@ -189,18 +189,16 @@ class Parser(B, S = string)
         {
             override State run(State toParse)
             {
+                if (!toParse.success) return toParse.fail;
+
                 auto outer = this.outer;
-                if (outer.oblivious_ || toParse.success) {
-                    auto res = outer.run(toParse);
-                    if (res.success) {
-                        res.value = dg(res.value, res.parsed);
-                        return res.succeed;
-                    } else {
-                        return res.fail;
-                    }
+                auto res = outer.run(toParse);
+                if (res.success) {
+                    res.value = dg(res.value, res.parsed);
+                    return res.succeed;
                 } else {
-                    return toParse.fail;
-                } /* if oblivious */
+                    return res.fail;
+                }
             } /* run */
         } /* Res */
         return new Res();
@@ -247,15 +245,13 @@ class Parser(B, S = string)
         {
             override State run(State toParse)
             {
+                if (!toParse.success) return toParse.fail;
+
                 auto outer = this.outer;
-                if (toParse.success || outer.oblivious_) {
-                    auto res = outer.run(toParse);
-                    if (res.success) {
-                        res.parsed = "";
-                        return res.succeed;
-                    } else {
-                        return toParse.fail;
-                    }
+                auto res = outer.run(toParse);
+                if (res.success) {
+                    res.parsed = "";
+                    return res.succeed;
                 } else {
                     return toParse.fail;
                 }
@@ -284,7 +280,11 @@ class Parser(B, S = string)
         class Res: ThisParser
         {
             this() { lookahead = LookaheadMode.reluctant; }
-            override State run(State toParse) { return this.outer.run(toParse); }
+            override State run(State toParse) 
+            { 
+                if (!toParse.success) return toParse.fail;
+                return this.outer.run(toParse); 
+            }
         }
         return new Group(new Res);
     }
@@ -294,7 +294,11 @@ class Parser(B, S = string)
         class Res: ThisParser
         {
             this() { lookahead = LookaheadMode.greedy; }
-            override State run(State toParse) { return this.outer.run(toParse); }
+            override State run(State toParse) 
+            { 
+                if (!toParse.success) return toParse.fail;
+                return this.outer.run(toParse); 
+            }
         }
         return new Group(new Res);
     }
