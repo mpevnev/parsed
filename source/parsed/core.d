@@ -35,6 +35,7 @@ struct ParserState(B, S = string) /* B(uild) and S(tring). */
     S parsed;
     B value; 
     bool success = true;
+    bool recovered = false;
 
     private struct Slice
     {
@@ -128,6 +129,14 @@ struct ParserState(B, S = string) /* B(uild) and S(tring). */
         auto res = this;
         res.success = true;
         res.parsed = null;
+        return res;
+    }
+
+    ThisState recover()
+    {
+        auto res = this;
+        res.recovered = true;
+        res.success = true;
         return res;
     }
 }
@@ -268,7 +277,7 @@ class Parser(B, S = string)
             override State run(State toParse)
             {
                 if (!toParse.success)
-                    toParse = toParse.succeed;
+                    toParse = toParse.recover;
                 return this.outer.run(toParse);
             }
         }
@@ -279,9 +288,16 @@ class Parser(B, S = string)
     {
         class Res: ThisParser
         {
-            this() { lookahead = LookaheadMode.reluctant; }
+            this() 
+            { 
+                lookahead = LookaheadMode.reluctant;
+                oblivious_ = this.outer.oblivious;
+            }
+
             override State run(State toParse) 
             { 
+                if (this.outer.oblivious && !toParse.success)
+                    toParse = toParse.recover;
                 if (!toParse.success) return toParse.fail;
                 return this.outer.run(toParse); 
             }
@@ -293,9 +309,16 @@ class Parser(B, S = string)
     {
         class Res: ThisParser
         {
-            this() { lookahead = LookaheadMode.greedy; }
+            this() 
+            { 
+                lookahead = LookaheadMode.greedy;
+                oblivious_ = this.outer.oblivious;
+            }
+
             override State run(State toParse) 
             { 
+                if (this.outer.oblivious && !toParse.success)
+                    toParse = toParse.recover;
                 if (!toParse.success) return toParse.fail;
                 return this.outer.run(toParse); 
             }
@@ -370,20 +393,6 @@ unittest
     assert(res1.success);
     assert(res1.parsed == "foobar");
 }
-unittest
-{
-    /* Greed and reluctance test. */
-
-    string str1 = "foobarfoo";
-    auto s1 = ParserState!int(str1);
-
-    auto p1 = many(1, -1, literal!int("foo") | literal!int("bar")).makeReluctant()
-        * literal!int("foo");
-
-    auto res1_1 = p1.run(s1);
-    assert(res1_1.success);
-    assert(res1_1.parsed == "foobarfoo");
-}
 
 /* B(uild) and S(tring). */
 private class ParserGroup(B, S = string): Parser!(B, S)
@@ -432,7 +441,6 @@ private class ParserGroup(B, S = string): Parser!(B, S)
     {
         if (type == GroupType.and) {
             /* Sequential application of parsers. */
-
             final switch (lookahead) {
                 case LookaheadMode.none: 
                     return tryRun(toParse, 0, parsers, oblivious);
@@ -493,7 +501,18 @@ private class ParserGroup(B, S = string): Parser!(B, S)
         }
 
         ThisParser current = leftParsers[0];
-        if (!tryParse.success && !oblivious) return tryParse.fail;
+        bool locallyOblivious = current.oblivious;
+
+        /* Check if this parser should be skipped because it's not oblivious
+           and the chain is in the failed state. */
+        if (!tryParse.success && oblivious && !locallyOblivious)
+            return tryRun(tryParse, i + 1, leftParsers[1 .. $], oblivious);
+
+        /* Either the current parser is oblivious or the preceding chain has
+           succeeded. Either way, normal functioning. */
+        if (locallyOblivious && !tryParse.success)
+            tryParse = tryParse.recover;
+        if (!tryParse.success) return tryParse.fail;
 
         final switch (current.lookahead) {
             case LookaheadMode.none:
@@ -503,8 +522,8 @@ private class ParserGroup(B, S = string): Parser!(B, S)
                         newState.parsed = tryParse.parsed ~ newState.parsed;
                     return tryRun(newState, i + 1, leftParsers[1 .. $], oblivious);
                 } else {
-                    if (oblivious)
-                        return tryRun(newState, i + 1, leftParsers[1 .. $], oblivious);
+                    if (oblivious) 
+                        return tryRun(tryParse.recover, i + 1, leftParsers[1 .. $], oblivious);
                     else
                         return tryParse.fail;
                 }
@@ -532,7 +551,10 @@ private class ParserGroup(B, S = string): Parser!(B, S)
                         end++;
                     }
                 } /* while end < len */
-                return tryParse.fail;
+                if (oblivious)
+                    return tryRun(tryParse.recover, i + 1, leftParsers[1 .. $], oblivious);
+                else
+                    return tryParse.fail;
             case LookaheadMode.greedy:
                 size_t end = tryParse.left.length;
                 while (end > 0) {
@@ -556,7 +578,10 @@ private class ParserGroup(B, S = string): Parser!(B, S)
                         end--;
                     }
                 } /* while end > 0 */
-                return tryParse.fail;
+                if (oblivious)
+                    return tryRun(tryParse.recover, i + 1, leftParsers[1 .. $], oblivious);
+                else
+                    return tryParse.fail;
         } /* switch lookahead */
     } /* tryRun */
 
@@ -695,6 +720,80 @@ private class ParserGroup(B, S = string): Parser!(B, S)
         } /* if monolithic combination */
         return res;
     } /* any */
+}
+unittest
+{
+    /* Greed and reluctance test. */
+
+    string str1 = "foo!bar!";
+    auto s1 = ParserState!int(str1);
+
+    auto p1 = everything!int.makeReluctant * literal!int("!");
+    auto p2 = everything!int.makeGreedy * literal!int("!");
+
+    auto res1_1 = p1.run(s1);
+    assert(res1_1.success);
+    assert(res1_1.parsed == "foo!");
+
+    auto res2_1 = p2.run(s1);
+    assert(res2_1.success);
+    assert(res2_1.parsed == "foo!bar!");
+}
+unittest
+{
+    /* One more greed and reluctance test; this time the greedy/reluctant
+       parser is the sole parser in the chain. */
+
+    string str1 = "111";
+    auto s1 = ParserState!int(str1);
+
+    auto p1 = many(1, -1, literal!int("1")).makeReluctant;
+    auto p2 = many(1, -1, literal!int("1")).makeGreedy;
+
+    auto res1_1 = p1.run(s1);
+    assert(res1_1.success);
+    assert(res1_1.parsed == "1");
+
+    auto res2_1 = p2.run(s1);
+    assert(res2_1.success);
+    assert(res2_1.parsed == "111");
+}
+unittest
+{
+    /* Obliviousness test. */
+
+    string str1 = "foobar";
+    auto s1 = ParserState!int(str1);
+
+    auto p1 = literal!int("BAZ") 
+        / literal!int("foo").makeOblivious
+        * literal!int("bar");
+
+    auto res1_1 = p1.run(s1);
+    assert(res1_1.success);
+    assert(res1_1.parsed == "foobar");
+}
+unittest
+{
+    /* Obliviousness and lookahead test. */
+
+    string str1 = "12121";
+    auto s1 = ParserState!int(str1);
+    
+    auto p1 = literal!int("0")
+        / everything!int.makeOblivious.makeReluctant
+        * literal!int("1");
+    auto p2 = literal!int("0")
+        / everything!int.makeOblivious.makeGreedy
+        * literal!int("1");
+
+    auto res1_1 = p1.run(s1);
+    assert(res1_1.success);
+    assert(res1_1.parsed == "1");
+
+    auto res2_1 = p2.run(s1);
+    assert(res2_1.success);
+    assert(res2_1.parsed == "12121");
 }
 
 private enum LookaheadMode
@@ -1102,10 +1201,10 @@ throwOnFailure(B, S = string)(Exception exc)
         this() { oblivious_ = true; }
         override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
-            if (toParse.success) 
-                return toParse.succeed;
-            else
+            if (toParse.recovered) 
                 throw exc;
+            else
+                return toParse.succeed;
         }
     }
     return new Res();
