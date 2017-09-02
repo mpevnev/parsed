@@ -383,12 +383,15 @@ unittest
 private class ParserGroup(B, S = string): Parser!(B, S)
     if (isSomeString!S)
 {
+    /* All members are private unless stated otherwise. */
+    private:
+
     Parser!(B, S)[] parsers;
     bool[] concat;
     GroupType type;
     bool monolithic;
 
-    override bool oblivious() const @property
+    public override bool oblivious() const @property
     {
         import std.algorithm;
         return parsers.any!(x => x.oblivious);
@@ -419,7 +422,7 @@ private class ParserGroup(B, S = string): Parser!(B, S)
         concat = [false];
     }
 
-    final override State run(State toParse)
+    public final override State run(State toParse)
     {
         if (type == GroupType.and) {
             /* Sequential application of parsers. */
@@ -553,13 +556,13 @@ private class ParserGroup(B, S = string): Parser!(B, S)
 
     alias run = ThisParser.run;
 
-    final void makeMonolithic()
+    public final Group makeMonolithic()
     {
         return new Group(this, true);
     }
 
     /* Either append or prepend a parser to the chain. */
-    override Group chain(ThisParser other, bool concat, bool prepend)
+    public override Group chain(ThisParser other, bool concat, bool prepend)
     {
         /* We simply wrap the group and the other parser in a new group in two
            cases: when the group is monolithic, or when we can't chain extra
@@ -589,7 +592,7 @@ private class ParserGroup(B, S = string): Parser!(B, S)
     } /* chain */
 
     /* Same, but add a chain instead of an individual parser. */
-    override Group chain(Group other, bool concat, bool prepend)
+    public override Group chain(Group other, bool concat, bool prepend)
     {
         auto res = new Group(GroupType.and, false);
         /* We treat OR groups as monolithic, because we can't add elements to
@@ -637,7 +640,7 @@ private class ParserGroup(B, S = string): Parser!(B, S)
         return res;
     } /* chain */
 
-    override Group any(ThisParser other, bool prepend)
+    public override Group any(ThisParser other, bool prepend)
     {
         /* We treat AND groups as monolithic because we can't add elements to
            them in this method. */
@@ -656,7 +659,7 @@ private class ParserGroup(B, S = string): Parser!(B, S)
         return res;
     }
 
-    override Group any(Group other, bool prepend)
+    public override Group any(Group other, bool prepend)
     {
         /* We treat AND groups as monolithic because we can't add elements to
            them in this method. */
