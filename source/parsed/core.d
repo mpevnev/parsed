@@ -271,6 +271,8 @@ class Parser(B, S = string)
             this() { oblivious_ = true; }
             override State run(State toParse)
             {
+                if (!toParse.success)
+                    toParse = toParse.succeed;
                 return this.outer.run(toParse);
             }
         }
@@ -698,7 +700,7 @@ private enum LookaheadMode
     reluctant,
 }
 
-enum GroupType
+private enum GroupType
 {
     and,
     or
@@ -773,7 +775,7 @@ unittest
 }
 
 /* Always succeeds. Useful if the first thing in the chain you want to do is to
-   build value.
+   build value and you dislike (relative) clunkiness of 'build' parser.
    */
 auto
 succeed(B, S = string)()
@@ -783,7 +785,10 @@ succeed(B, S = string)()
     {
         override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
-            return toParse.succeed;
+            if (toParse.success || oblivious)
+                return toParse.succeed;
+            else
+                return toParse.fail;
         }
     }
     return new Res();
@@ -863,6 +868,7 @@ force(B, S = string)()
     {
         override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
+            if (!toParse.success) return toParse.fail;
             auto res = toParse;
             res.left = toParse.left.dup;
             res.parsed = toParse.parsed.dup;
@@ -1261,7 +1267,6 @@ unittest
     auto res1_2 = p1.run(s2);
     assert(!res1_2.success);
 }
-
 
 /* ---------- conditional parsers ---------- */
 
