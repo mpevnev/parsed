@@ -155,10 +155,12 @@ class Parser(B, S = string)
 
     /* This should be true if the parser is able to operate even if the chain
        is in the failed state. */
-    protected bool oblivious = false;
+    protected bool oblivious_ = false;
     protected LookaheadMode lookahead = LookaheadMode.none;
 
     public:
+
+    bool oblivious() const @property { return oblivious_; }
 
     /* ---------- high-level operations ---------- */
 
@@ -188,7 +190,7 @@ class Parser(B, S = string)
             override State run(State toParse)
             {
                 auto outer = this.outer;
-                if (outer.oblivious || toParse.success) {
+                if (outer.oblivious_ || toParse.success) {
                     auto res = outer.run(toParse);
                     if (res.success) {
                         res.value = dg(res.value, res.parsed);
@@ -246,7 +248,7 @@ class Parser(B, S = string)
             override State run(State toParse)
             {
                 auto outer = this.outer;
-                if (toParse.success || outer.oblivious) {
+                if (toParse.success || outer.oblivious_) {
                     auto res = outer.run(toParse);
                     if (res.success) {
                         res.parsed = "";
@@ -266,13 +268,33 @@ class Parser(B, S = string)
     {
         class Res: ThisParser
         {
-            this() { oblivious = true; }
+            this() { oblivious_ = true; }
             override State run(State toParse)
             {
                 return this.outer.run(toParse);
             }
         }
         return new Res();
+    }
+
+    Group makeReluctant()
+    {
+        class Res: ThisParser
+        {
+            this() { lookahead = LookaheadMode.reluctant; }
+            override State run(State toParse) { return this.outer.run(toParse); }
+        }
+        return new Group(new Res);
+    }
+
+    Group makeGreedy()
+    {
+        class Res: ThisParser
+        {
+            this() { lookahead = LookaheadMode.greedy; }
+            override State run(State toParse) { return this.outer.run(toParse); }
+        }
+        return new Group(new Res);
     }
 
     /* ---------- operator overloads ---------- */ 
@@ -311,20 +333,9 @@ class Parser(B, S = string)
 }
 unittest
 {
+    /* Building test. */
+
     import std.conv;
-
-    /*
-    string str1 = "foo bar baz";
-
-    auto p1 = literal!int("foo");
-    assert(p1.match(str1));
-
-    auto p2 = p1 * literal!int(" ");
-    assert(p2.match(str1));
-
-    auto p3 = p1 * literal!int("BAR");
-    assert(!p3.match(str1));
-    */
 
     string str2 = "1 2 3";
     auto state = ParserState!int(0, str2);
@@ -340,6 +351,8 @@ unittest
 }
 unittest
 {
+    /* Discard and chaining test. */
+
     string str1 = "foo bar";
     auto s1 = ParserState!int(str1);
 
@@ -351,16 +364,35 @@ unittest
     assert(res1.success);
     assert(res1.parsed == "foobar");
 }
+unittest
+{
+    /* Greed and reluctance test. */
 
+    string str1 = "foobarfoo";
+    auto s1 = ParserState!int(str1);
+
+    auto p1 = many(1, -1, literal!int("foo") | literal!int("bar")).makeReluctant()
+        * literal!int("foo");
+
+    auto res1_1 = p1.run(s1);
+    assert(res1_1.success);
+    assert(res1_1.parsed == "foobarfoo");
+}
+
+/* B(uild) and S(tring). */
 private class ParserGroup(B, S = string): Parser!(B, S)
     if (isSomeString!S)
 {
-    private:
-
     Parser!(B, S)[] parsers;
     bool[] concat;
     GroupType type;
     bool monolithic;
+
+    override bool oblivious() const @property
+    {
+        import std.algorithm;
+        return parsers.any!(x => x.oblivious);
+    }
 
     alias Group = ParserGroup!(B, S);
     alias ThisParser = Parser!(B, S);
@@ -380,28 +412,51 @@ private class ParserGroup(B, S = string): Parser!(B, S)
         this.monolithic = monolithic;
     }
 
-    public:
+    this(ThisParser parser)
+    {
+        this(GroupType.and, false);
+        parsers = [parser];
+        concat = [false];
+    }
 
     final override State run(State toParse)
     {
         if (type == GroupType.and) {
             /* Sequential application of parsers. */
-            State curState = toParse;
-            foreach (i, current; parsers) {
-                if (current.oblivious || curState.success) {
-                    State newState = current.run(curState);
-                    if (newState.success) {
-                        if (concat[i]) 
-                            newState.parsed = curState.parsed ~ newState.parsed;
-                        curState = newState.succeed;
-                    } else {
-                        curState = curState.fail;
+
+            final switch (lookahead) {
+                case LookaheadMode.none: 
+                    return tryRun(toParse, 0, parsers, oblivious);
+                case LookaheadMode.greedy: {
+                    size_t end = toParse.left.length;
+                    while (end > 0) {
+                        State tryParse = toParse[0 .. end];
+                        State res = tryRun(tryParse, 0, parsers, oblivious);
+                        if (res.success) {
+                            res.left = res.left ~ toParse.left[end .. $];
+                            return res.succeed;
+                        } else {
+                            end--;
+                        }
                     }
-                } else {
-                    curState = curState.fail;
+                    return toParse.fail;
                 }
-            } /* foreach parser */
-            return curState;
+                case LookaheadMode.reluctant: {
+                    size_t end = 0;
+                    size_t len = toParse.left.length;
+                    while (end < len) {
+                        State tryParse = toParse[0 .. end];
+                        State res = tryRun(tryParse, 0, parsers, oblivious);
+                        if (res.success) {
+                            res.left = res.left ~ toParse.left[end .. $];
+                            return res.succeed;
+                        } else {
+                            end++;
+                        }
+                    }
+                    return toParse.fail;
+                }
+            } /* switch lookahead */
         } else {
             /* Alternative application of parsers. */
             State save = toParse;
@@ -415,11 +470,92 @@ private class ParserGroup(B, S = string): Parser!(B, S)
         } /* if type == GroupType.and */
     } /* run */
 
+    /* A helper function to deal with lookahead. */
+    State tryRun(State tryParse, 
+            size_t i, 
+            ThisParser[] leftParsers,
+            bool oblivious) 
+    {
+        if (leftParsers == []) {
+            if (tryParse.success) 
+                return tryParse.succeed;
+            else
+                return tryParse.fail;
+        }
+
+        ThisParser current = leftParsers[0];
+        if (!tryParse.success && !oblivious) return tryParse.fail;
+
+        final switch (current.lookahead) {
+            case LookaheadMode.none:
+                State newState = current.run(tryParse);
+                if (newState.success) {
+                    if (concat[i])
+                        newState.parsed = tryParse.parsed ~ newState.parsed;
+                    return tryRun(newState, i + 1, leftParsers[1 .. $], oblivious);
+                } else {
+                    if (oblivious)
+                        return tryRun(newState, i + 1, leftParsers[1 .. $], oblivious);
+                    else
+                        return tryParse.fail;
+                }
+            case LookaheadMode.reluctant:
+                size_t end = 0;
+                size_t len = tryParse.left.length;
+                while (end < len) {
+                    State curState = tryParse[0 .. end];
+                    State newState = current.run(curState);
+                    if (newState.success) {
+                        newState.left = newState.left ~ tryParse.left[end .. $];
+                        State newerState = tryRun(newState, 
+                                i + 1, leftParsers[1 .. $], oblivious);
+                        if (newerState.success) {
+                            if (concat[i]) {
+                                newerState.parsed = tryParse.parsed
+                                    ~ newState.parsed
+                                    ~ newerState.parsed;
+                            }
+                            return newerState.succeed;
+                        } else {
+                            end++;
+                        }
+                    } else {
+                        end++;
+                    }
+                } /* while end < len */
+                return tryParse.fail;
+            case LookaheadMode.greedy:
+                size_t end = tryParse.left.length;
+                while (end > 0) {
+                    State curState = tryParse[0 .. end];
+                    State newState = current.run(curState);
+                    if (newState.success) {
+                        newState.left = newState.left ~ tryParse.left[end .. $];
+                        State newerState = tryRun(newState, 
+                                i + 1, leftParsers[1 .. $], oblivious);
+                        if (newerState.success) {
+                            if (concat[i]) {
+                                newerState.parsed = tryParse.parsed
+                                    ~ newState.parsed
+                                    ~ newerState.parsed;
+                            }
+                            return newerState.succeed;
+                        } else {
+                            end--;
+                        }
+                    } else {
+                        end--;
+                    }
+                } /* while end > 0 */
+                return tryParse.fail;
+        } /* switch lookahead */
+    } /* tryRun */
+
     alias run = ThisParser.run;
 
     final void makeMonolithic()
     {
-        monolithic = true;
+        return new Group(this, true);
     }
 
     /* Either append or prepend a parser to the chain. */
@@ -552,7 +688,7 @@ private class ParserGroup(B, S = string): Parser!(B, S)
     } /* any */
 }
 
-enum LookaheadMode
+private enum LookaheadMode
 {
     none,
     greedy,
@@ -950,7 +1086,7 @@ throwOnFailure(B, S = string)(Exception exc)
 {
     class Res: Parser!(B, S)
     {
-        this() { oblivious = true; }
+        this() { oblivious_ = true; }
         override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             if (toParse.success) 
@@ -969,7 +1105,7 @@ unittest
     string str2 = "fooBAR";
     auto p = literal!int("foo") / 
         literal!int("bar") / 
-        throwOnFailure!int(new Exception("Parse succesful"));
+        throwOnFailure!int(new Exception("Parse failed"));
 
     assertNotThrown(p.match(str1));
     assertThrown(p.match(str2));
@@ -982,7 +1118,7 @@ throwAnyway(B, S = string)(Exception exc)
 {
     class Res: Parser!(B, S)
     {
-        this() { oblivious = true; }
+        this() { oblivious_ = true; }
         override ParserState!(B, S) run(ParserState!(B, S) toParse)
         {
             throw exc;
