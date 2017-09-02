@@ -36,6 +36,11 @@ struct ParserState(B, S = string) /* B(uild) and S(tring). */
     B value; 
     bool success = true;
 
+    private struct Slice
+    {
+        size_t start, end;
+    }
+
     this(B init, S toParse)
     {
         value = init;
@@ -47,6 +52,27 @@ struct ParserState(B, S = string) /* B(uild) and S(tring). */
         value = B.init;
         left = toParse;
     }
+
+    /* ---------- slicing overloads ---------- */
+
+    Slice opSlice(size_t Dim)(size_t start, size_t end)
+    {
+        return Slice(start, end);
+    }
+
+    size_t opDollar(size_t Dim)()
+    {
+        return left.length;
+    }
+
+    ThisState opIndex(Slice slice)
+    {
+        auto res = this;
+        res.left = res.left[slice.start .. slice.end];
+        return res;
+    }
+
+    /* ---------- manipulation ---------- */
 
     ThisState fail()
     {
@@ -105,6 +131,17 @@ struct ParserState(B, S = string) /* B(uild) and S(tring). */
         return res;
     }
 }
+unittest
+{
+    string str1 = "foo bar";
+
+    auto s1 = ParserState!int(str1);
+
+    auto slice1_1 = s1[0 .. 3];
+    auto slice1_2 = s1[3 .. $];
+    assert(slice1_1.left == "foo");
+    assert(slice1_2.left == " bar");
+}
 
 /* B(uild) and S(tring). */
 class Parser(B, S = string) 
@@ -119,6 +156,7 @@ class Parser(B, S = string)
     /* This should be true if the parser is able to operate even if the chain
        is in the failed state. */
     protected bool oblivious = false;
+    protected LookaheadMode lookahead = LookaheadMode.none;
 
     public:
 
@@ -168,7 +206,7 @@ class Parser(B, S = string)
 
     Group chain(ThisParser other, bool concat, bool prepend)
     {
-        auto res = new Group(Group.GroupType.and, false);
+        auto res = new Group(GroupType.and, false);
         if (prepend)
             res.parsers = [other, this];
         else
@@ -185,7 +223,7 @@ class Parser(B, S = string)
     /* Returns state of the first parser of the two to succeed. */
     Group any(ThisParser other, bool prepend)
     {
-        auto res = new Group(Group.GroupType.or, false);
+        auto res = new Group(GroupType.or, false);
         if (prepend)
             res.parsers = [other, this];
         else
@@ -327,12 +365,6 @@ private class ParserGroup(B, S = string): Parser!(B, S)
     alias Group = ParserGroup!(B, S);
     alias ThisParser = Parser!(B, S);
     alias State = ParserState!(B, S);
-
-    enum GroupType
-    {
-        and,
-        or
-    }
 
     this(GroupType type, bool monolithic)
     {
@@ -518,6 +550,19 @@ private class ParserGroup(B, S = string): Parser!(B, S)
         } /* if monolithic combination */
         return res;
     } /* any */
+}
+
+enum LookaheadMode
+{
+    none,
+    greedy,
+    reluctant,
+}
+
+enum GroupType
+{
+    and,
+    or
 }
 
 /* ---------- fundamental parsers ---------- */
