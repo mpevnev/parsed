@@ -1178,6 +1178,91 @@ unittest
     assert(res2_1.parsed == "bar");
 }
 
+/* Catches an exception that might occur in another parser. If an exception is
+   thrown inside 'main' parser, it is considered failed and 'onException'
+   parser is run on the original input. */
+auto
+except(E, B, S = string)(Parser!(B, S) main, Parser!(B, S) onException)
+    if (isSomeString!S)
+{
+    class Res: Parser!(B, S)
+    {
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
+        {
+            try {
+                return main.run(toParse);
+            } catch (E e) {
+                return onException.run(toParse);
+            }
+        }
+    }
+    return new Res();
+}
+unittest
+{
+    import std.conv;
+
+    string str1 = "12";
+    string str2 = "12d";
+
+    auto s1 = ParserState!int(str1);
+    auto s2 = ParserState!int(str2);
+
+    auto base = everything!int % (res, s) => s.to!int;
+
+    auto p1 = base.except!(ConvException, int)(build!int((res, s) => 0));
+
+    auto res1_1 = p1.run(s1);
+    assert(res1_1.success);
+    assert(res1_1.value == 12);
+
+    auto res1_2 = p1.run(s2);
+    assert(res1_2.success);
+    assert(res1_2.value == 0);
+}
+
+/* Catches an exception that might occur in another parser. If such an
+   exception is thrown, this overload fails. */
+auto
+except(E, B, S = string)(Parser!(B, S) main)
+    if (isSomeString!S)
+{
+    class Res: Parser!(B, S)
+    {
+        override ParserState!(B, S) run(ParserState!(B, S) toParse)
+        {
+            try {
+                return main.run(toParse);
+            } catch (E e) {
+                return toParse.fail;
+            }
+        }
+    }
+    return new Res();
+}
+unittest
+{
+    import std.conv;
+
+    string str1 = "12";
+    string str2 = "12d";
+
+    auto s1 = ParserState!int(str1);
+    auto s2 = ParserState!int(str2);
+
+    auto base = everything!int % (res, s) => s.to!int;
+
+    auto p1 = base.except!(ConvException, int)();
+
+    auto res1_1 = p1.run(s1);
+    assert(res1_1.success);
+    assert(res1_1.value == 12);
+
+    auto res1_2 = p1.run(s2);
+    assert(!res1_2.success);
+}
+
+
 /* ---------- conditional parsers ---------- */
 
 /* Be extra careful with the following parsers: they always succeed and are not

@@ -160,6 +160,20 @@ Throws a given exception.
 
 Matches until the end of input. Always succeeds.
 
+## except (1st overload)
+
+`auto except(E, B, S = string)(Parser!(B, S) main, Parser!(B, S) onException)`.
+
+Catches an exception of type E that might occur in `main`. If such an exception
+is thrown, runs `onException` on the original input.
+
+## except (2nd overload)
+
+`auto except(E, B, S = string)(Parser!(B, S) main)`.
+
+Catches an exception of type E that might occur in `main`. If such an exception
+is thrown, this overload fails.
+
 ## charWhile
 
 `auto charWhile(B, C = char)(bool delegate (C) test, bool keepTerminator = true)`.
