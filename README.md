@@ -56,6 +56,30 @@ starting with "foo" and strings starting with "bar".
 For more complex examples, see 'examples' folder. Unittests in the source files
 also provide several, but they are not very elaborate.
 
+# Lookahead
+
+By default all parsers do not perform any lookahead, consuming their input
+regardless of whether or not the parsers that follow would match the remaining
+input. Sometimes, a different behaviour is desirable, when parsers in the 
+middle of a chain yield some of the input to the parsers after them. Two
+methods of the Parser class accomplish this, `makeReluctant()` and `makeGreedy()`.
+The former creates a copy of the caller parser that performs lookahead and is
+reluctant - it'll consume as little input as it can, but may consume more than
+possible if it makes the following parsers succeed. The latter works in the
+same vein, but the output parser is greedy - it'll consume as much input as it
+can, but may consume less than possible if it makes the following parsers
+succeed. For examples of these, see unittests below ParserGroup class.
+
+# Obliviousness
+
+Sometimes a parser needs to be able to operate even if the chain before it has
+failed. Normal parsers cannot do that, chaining rules (and, for built-in
+parsers, coded-in short-circuiting) prevent such behaviour. To override this
+`makeOblivious()` method of Parser class is used. It returns a new parser that
+is oblivious, that is, will work even if the chain before has failed. It may
+fail or succeed as usual. The input it'll receive will be the result of the 
+last successful parse.
+
 # Core parsers
 
 These are the parsers that are defined in `parsed.core`.
