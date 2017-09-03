@@ -375,3 +375,9 @@ complex parsers.
 
 A convenience parser to search for any of the parsers given as a range. Just
 like `literal` may optionally not consume input and be case insensitive.
+
+## endOfInput
+
+`auto endOfInput(B, S = string)()`.
+
+Succeeds only if the input is empty.

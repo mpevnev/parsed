@@ -680,3 +680,39 @@ unittest
     assert(res2_3.success);
     assert(res2_3.parsed == "BAR");
 }
+
+/* Succeeds only if the input is empty. */
+auto
+endOfInput(B, S = string)()
+    if (isSomeString!S)
+{
+    class Res: Parser!(B, S)
+    {
+        override ParserState!(B, S) parse(ParserState!(B, S) toParse)
+        {
+            if (toParse.left == "")
+                return toParse.succeed("");
+            else
+                return toParse.fail;
+        }
+    }
+    return new Res;
+}
+unittest
+{
+    string str1 = "foobar";
+    string str2 = "foo";
+
+    auto s1 = ParserState!int(str1);
+    auto s2 = ParserState!int(str2);
+
+    auto p1 = literal!int("foo") 
+        * endOfInput!int;
+
+    auto res1_1 = p1.run(s1);
+    assert(!res1_1.success);
+
+    auto res1_2 = p1.run(s2);
+    assert(res1_2.success);
+    assert(res1_2.parsed == "foo");
+}
