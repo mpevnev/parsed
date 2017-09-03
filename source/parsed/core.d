@@ -209,6 +209,12 @@ class Parser(B, S = string)
     {
         class Res: ThisParser
         {
+            this()
+            {
+                oblivious_ = this.outer.oblivious;
+                lookahead = this.outer.lookahead;
+            }
+
             override State parse(State toParse)
             {
                 auto outer = this.outer;
@@ -263,6 +269,12 @@ class Parser(B, S = string)
     {
         class Res: ThisParser
         {
+            this()
+            {
+                oblivious_ = this.outer.oblivious;
+                lookahead = this.outer.lookahead;
+            }
+
             override State parse(State toParse)
             {
                 auto res = this.outer.parse(toParse);
