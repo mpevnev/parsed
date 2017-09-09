@@ -505,12 +505,11 @@ private class ParserGroup(B, S = string): Parser!(B, S)
 
         ThisParser current = leftParsers[0];
         final switch (current.lookahead) {
-            case LookaheadMode.none: {
+            case LookaheadMode.none:
                 auto newState = current.run(tryParse);
                 prepend(newState, tryParse);
                 return tryRun(newState, i + 1, leftParsers[1 .. $]);
-            }
-            case LookaheadMode.reluctant: {
+            case LookaheadMode.reluctant:
                 size_t end = 0;
                 size_t len = tryParse.left.length;
                 while (end <= len) {
@@ -529,8 +528,7 @@ private class ParserGroup(B, S = string): Parser!(B, S)
                     }
                 } /* while end < len */
                 return tryParse.fail;
-            }
-            case LookaheadMode.greedy: {
+            case LookaheadMode.greedy:
                 size_t len = tryParse.left.length;
                 size_t end = len;
                 while (end > 0) {
@@ -549,7 +547,6 @@ private class ParserGroup(B, S = string): Parser!(B, S)
                     }
                 } /* while end > 0 */
                 return tryParse.fail;
-            }
         } /* switch current.lookahead */
     } /* tryRun */
 
