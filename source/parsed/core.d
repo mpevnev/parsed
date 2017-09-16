@@ -850,7 +850,7 @@ succeed(B, S = string)()
     {
         override ParserState!(B, S) parse(ParserState!(B, S) toParse)
         {
-            return toParse.succeed;
+            return toParse.succeed("");
         }
     }
     return new Res();
@@ -871,7 +871,7 @@ test(B, S = string)(bool delegate (B, const S) tst)
         override ParserState!(B, S) parse(ParserState!(B, S) toParse)
         {
             if (tst(toParse.value, toParse.parsed))
-                return toParse.succeed;
+                return toParse.succeed("");
             else
                 return toParse.fail;
         }
@@ -902,6 +902,7 @@ build(B, S = string)(B delegate (B, const S) dg)
         {
             auto res = toParse;
             res.value = dg(toParse.value, toParse.parsed);
+            res.parsed = "";
             return res;
         }
     }
@@ -931,7 +932,7 @@ force(B, S = string)()
             auto res = toParse;
             res.left = toParse.left.dup;
             res.parsed = toParse.parsed.dup;
-            return res.succeed;
+            return res.succeed("");
         }
     }
     return new Res();
