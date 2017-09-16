@@ -100,7 +100,7 @@ struct ParserState(B, S = string) /* B(uild) and S(tring). */
         return res;
     }
 
-    ThisState build(B delegate (B, S) dg)
+    ThisState build(B delegate (B, const S) dg)
     {
         auto res = this;
         if (success) {
@@ -113,7 +113,7 @@ struct ParserState(B, S = string) /* B(uild) and S(tring). */
 
     ThisState absorb(B2)(
             ParserState!(B2, S) other,
-            B delegate (B, B2, S) dg)
+            B delegate (B, B2, const S) dg)
     {
         auto res = this;
         if (success) {
@@ -205,7 +205,7 @@ class Parser(B, S = string)
     /* ---------- parser combinations ---------- */
 
     /* Builds up a value. */
-    ThisParser build(B delegate (B, S) dg)
+    ThisParser build(B delegate (B, const S) dg)
     {
         class Res: ThisParser
         {
@@ -366,7 +366,7 @@ class Parser(B, S = string)
     /* Infix analog of 'build'. I've got no clever analogy as to why it's '%'.
        The real reason is that '%' is in the same precedence group as '*' and
        '/'. */
-    ThisParser opBinary(string op)(B delegate (B, S) dg)
+    ThisParser opBinary(string op)(B delegate (B, const S) dg)
         if (op == "%")
     {
         return build(dg);
@@ -776,7 +776,7 @@ private enum GroupType
 
 /* Parses a literal string (case-sensitive by default). */
 auto
-literal(B, S = string)(S str, bool consumeInput = true, bool caseSensitive = true) 
+literal(B, S = string)(const S str, bool consumeInput = true, bool caseSensitive = true) 
     if (isSomeString!S)
 {
     import std.string;
@@ -863,7 +863,7 @@ unittest
 
 /* Fails if given condition returns false, succeeds consuming no input otherwise. */
 auto
-test(B, S = string)(bool delegate (B, S) tst)
+test(B, S = string)(bool delegate (B, const S) tst)
     if (isSomeString!S)
 {
     class Res: Parser!(B, S)
@@ -894,7 +894,7 @@ unittest
 
 /* Builds a value from previous parser's output. Always succeeds. */
 auto
-build(B, S = string)(B delegate (B, S) dg)
+build(B, S = string)(B delegate (B, const S) dg)
 {
     class Res: Parser!(B, S)
     {
@@ -1011,7 +1011,7 @@ unittest
    passing it through a given delegate. 
    */
 auto
-absorb(B, B2, S = string)(B delegate (B, B2, S) dg, Parser!(B2, S) subparser)
+absorb(B, B2, S = string)(B delegate (B, B2, const S) dg, Parser!(B2, S) subparser)
     if (isSomeString!S)
 {
     class Res: Parser!(B, S)
@@ -1051,7 +1051,7 @@ unittest
    result for parsed string.
    */
 auto
-morph(B, S = string)(S delegate (S) dg)
+morph(B, S = string)(S delegate (const S) dg)
     if (isSomeString!S)
 {
     class Res: Parser!(B, S)
@@ -1377,7 +1377,7 @@ charUntil(B, C = char)(bool delegate (C) test, bool keepTerminator = true)
    Always succeeds.
    */
 auto
-repeatWhile(B, S = string)(bool delegate (B, S, int) test, Parser!(B, S) p)
+repeatWhile(B, S = string)(bool delegate (B, const S, int) test, Parser!(B, S) p)
     if (isSomeString!S)
 {
     class Res: Parser!(B, S)
@@ -1426,7 +1426,7 @@ unittest
    same as for 'repeatWhile'.
    */
 auto
-repeatUntil(B, S = string)(bool delegate (B, S, int) test, Parser!(B, S) p)
+repeatUntil(B, S = string)(bool delegate (B, const S, int) test, Parser!(B, S) p)
     if (isSomeString!S)
 {
     return repeatWhile((b, s, i) => !test(b, s, i), p);
