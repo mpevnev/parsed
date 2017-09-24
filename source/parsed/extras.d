@@ -618,7 +618,7 @@ unittest
 /* Behaves just like the 'literal' parser from core, but takes a range of 
    strings as patterns. */
 auto
-multiliteral(B, S = string, R)(R range, bool consumeInput = true, bool caseSensitive = true)
+multiliteral(B, S = string, R)(R range, bool caseSensitive = true)
     if (isSomeString!S && isInputRange!R && is(Unqual!(ElementType!R): S))
 {
     import std.algorithm;
@@ -633,8 +633,7 @@ multiliteral(B, S = string, R)(R range, bool consumeInput = true, bool caseSensi
             foreach (literal; literals) {
                 S checkAgainst = caseSensitive ? toParse.left : toParse.left.toLower;
                 if (checkAgainst.startsWith(literal)) {
-                    if (consumeInput)
-                        toParse.left = toParse.left[literal.length .. $];
+                    toParse.left = toParse.left[literal.length .. $];
                     return toParse.succeed(literal);
                 }
             }

@@ -345,6 +345,27 @@ class Parser(B, S = string)
         return new Group(new Res, false);
     }
 
+    /* Make a new parser that doesn't consume input. */
+    ThisParser noConsume()
+    {
+        class Res: ThisParser
+        {
+            this()
+            {
+                oblivious_ = this.outer.oblivious_;
+                lookahead = this.outer.lookahead;
+            }
+
+            override State parse(State toParse)
+            {
+                auto res = this.outer.parse(toParse);
+                res.left = toParse.left;
+                return res;
+            }
+        }
+        return new Res();
+    }
+
     /* ---------- operator overloads ---------- */ 
 
     /* Infix analog of 'chain' without parsed string concatenation. Think of 
@@ -411,6 +432,20 @@ unittest
     auto res1 = p1.run(str1);
     assert(res1.success);
     assert(res1.parsed == "foobar");
+}
+unittest
+{
+    /* noConsume test. */
+
+    string str1 = "foofoo";
+    auto s1 = ParserState!int(str1);
+
+    auto p1 = literal!int("foo").noConsume;
+
+    auto res1_1 = p1.run(s1);
+    assert(res1_1.success);
+    assert(res1_1.parsed == "foo");
+    assert(res1_1.left == "foofoo");
 }
 
 /* B(uild) and S(tring). */
@@ -776,7 +811,7 @@ private enum GroupType
 
 /* Parses a literal string (case-sensitive by default). */
 auto
-literal(B, S = string)(const S str, bool consumeInput = true, bool caseSensitive = true) 
+literal(B, S = string)(const S str, bool caseSensitive = true) 
     if (isSomeString!S)
 {
     import std.string;
@@ -790,8 +825,7 @@ literal(B, S = string)(const S str, bool consumeInput = true, bool caseSensitive
             S checkAgainst = toParse.left;
             if (!caseSensitive) checkAgainst = checkAgainst.toLower;
             if (checkAgainst.startsWith(use)) {
-                if (consumeInput)
-                    toParse.left = toParse.left[use.length .. $];
+                toParse.left = toParse.left[use.length .. $];
                 return toParse.succeed(str);
             }
             return toParse.fail;
@@ -806,7 +840,7 @@ unittest
     auto p1 = literal!int("Hello");
     assert(p1.match(str));
 
-    auto p2 = literal!int("hello", true, false);
+    auto p2 = literal!int("hello", false);
     assert(p2.match(str));
 
     assert(!(p1 * p2).match(str));

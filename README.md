@@ -80,16 +80,22 @@ is oblivious, that is, will work even if the chain before has failed. It may
 fail or succeed as usual. The input it'll receive will be the result of the 
 last successful parse.
 
+# Consuming input
+
+By default all parsers trim away input they parse. This can be changed by using
+`noConsume` method of the Parser class, which makes a new parser that doesn't
+consume the input it parses.
+
 # Core parsers
 
 These are the parsers that are defined in `parsed.core`.
 
 ## literal
 
-`auto literal(B, S = string)(S str, bool consumeInput = true, bool caseSensitive = true)`.
+`auto literal(B, S = string)(S str, bool caseSensitive = true)`.
 
-Matches a literal string. Optionally may not consume input and disregard case.
-`.parsed` is the matched string.
+Matches a literal string. Optionally may disregard case. `.parsed` is the
+matched string.
 
 ## fail
 
@@ -371,10 +377,10 @@ complex parsers.
 
 ## multiliteral
 
-`auto multiliteral(B, S = string, R)(R range, bool consumeInput = true, bool caseSensitive = true)`.
+`auto multiliteral(B, S = string, R)(R range, bool caseSensitive = true)`.
 
 A convenience parser to search for any of the parsers given as a range. Just
-like `literal` may optionally not consume input and be case insensitive.
+like `literal` may optionally be case insensitive.
 
 ## endOfInput
 
