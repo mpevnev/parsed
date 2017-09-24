@@ -86,6 +86,13 @@ By default all parsers trim away input they parse. This can be changed by using
 `noConsume` method of the Parser class, which makes a new parser that doesn't
 consume the input it parses.
 
+# Suspending building of the value
+
+Sometimes it may be desirable to use a parser without associated build-up of 
+the value. To convert a building parser into a non-building one `noBuild`
+method may be used. It returns a new, non-building parser that otherwise
+behaves just like the parser it was called on.
+
 # Core parsers
 
 These are the parsers that are defined in `parsed.core`.

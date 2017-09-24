@@ -366,6 +366,28 @@ class Parser(B, S = string)
         return new Res();
     }
 
+    /* Make a new parser that doesn't build the value. */
+    ThisParser noBuild()
+    {
+        class Res: ThisParser
+        {
+            this()
+            {
+                oblivious_ = this.outer.oblivious_;
+                lookahead = this.outer.lookahead;
+            }
+
+            override State parse(State toParse)
+            {
+                auto value = toParse.value;
+                auto res = this.outer.parse(toParse);
+                res.value = value;
+                return res;
+            }
+        }
+        return new Res();
+    }
+
     /* ---------- operator overloads ---------- */ 
 
     /* Infix analog of 'chain' without parsed string concatenation. Think of 
@@ -406,17 +428,24 @@ unittest
 
     import std.conv;
 
-    string str2 = "1 2 3";
-    auto state = ParserState!int(0, str2);
+    string str1 = "1 2 3";
+    auto s1 = ParserState!int(0, str1);
 
-    auto p = (literal!int("1") | literal!int("2") | literal!int("3"))
+    auto p1 = (literal!int("1") | literal!int("2") | literal!int("3"))
         % (int i, string s) => i + to!int(s);
     auto space = literal!int(" ");
-    auto sum = p * space * p * space * p;
-    auto res = sum.run(state);
-    assert(res.success);
-    assert(res.parsed == "1 2 3");
-    assert(res.value == 6);
+
+    auto sum1 = p1 * space * p1 * space * p1;
+    auto res1_1 = sum1.run(s1);
+    assert(res1_1.success);
+    assert(res1_1.parsed == "1 2 3");
+    assert(res1_1.value == 6);
+
+    auto sum2 = p1 * space * p1.noBuild * space * p1;
+    auto res2_1 = sum2.run(s1);
+    assert(res2_1.success);
+    assert(res2_1.parsed == "1 2 3");
+    assert(res2_1.value == 4);
 }
 unittest
 {
