@@ -1031,15 +1031,16 @@ many(B, S = string)(int min, int max, Parser!(B, S) p)
             /* Parse the rest. */
             B value = cur.value;
             while ((max < 0 || n < max) && cur.success) {
+                auto old = cur;
                 cur = p.run(cur);
-                if (!cur.success) 
-                    break;
-                else
+                if (cur.success) {
                     value = cur.value;
-                n++;
-                parsed ~= cur.parsed;
+                    n++;
+                    parsed ~= cur.parsed;
+                } else {
+                    return old.succeed(parsed);
+                }
             }
-            cur.value = value;
             return cur.succeed(parsed);
         }
     }
